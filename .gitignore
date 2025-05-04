@@ -1,0 +1,30 @@
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Editor/IDE files
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# Node.js (if you use npm for development)
+node_modules/
+npm-debug.log
+package-lock.json
+
+# Compiled/minified files
+*.min.js
+*.min.css
+
+# Environment variables
+.env
+
+# Debug logs
+debug.log
+
+# API keys (add this file if you store keys separately)
+# keys.js
+
+# Personal notes
+notes.md 

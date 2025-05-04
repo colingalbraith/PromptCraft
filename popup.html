@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PromptCraft</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Montserrat:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="popup.css">
+  <style>
+    html, body {
+      min-width: 400px;  /* Minimum width */
+      min-height: 500px; /* Minimum height */
+      width: auto !important;  /* Allow resizing */
+      height: auto !important; /* Allow resizing */
+      resize: both;  /* Enable resizing */
+      overflow: auto;  /* Add scrollbars when needed */
+      margin: 0;
+      padding: 0;
+      background-color: #F3C623 !important;
+      border-radius: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <img src="icon.png" class="logo" alt="PromptCraft">
+      <h1>PromptCraft</h1>
+    </div>
+    
+    <div class="input-group">
+      <label for="modifier">Choose a style:</label>
+      <select id="modifier">
+        <option value="short">Concise</option>
+        <option value="educational">Educational</option>
+        <option value="prioritize_visualizations">Visual-focused</option>
+        <option value="creative">Creative</option>
+        <option value="technical">Technical</option>
+      </select>
+    </div>
+    
+    <div class="input-group">
+      <label for="input">Your prompt:</label>
+      <textarea id="input" placeholder="Enter your prompt here..."></textarea>
+    </div>
+    
+    <button id="rewrite">Enhance Prompt</button>
+    
+    <div id="output-container" class="hidden">
+      <div class="input-group">
+        <label for="output">Enhanced prompt:</label>
+        <textarea id="output" readonly></textarea>
+      </div>
+      <button id="copy" data-tooltip="Copy to clipboard">Copy to Clipboard</button>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
