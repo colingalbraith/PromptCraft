@@ -1,14 +1,12 @@
 # 🌟 PromptCraft – Chrome Extension for Effortless Prompt Engineering
 
-![PromptCraft Screenshot](
+
 
 ![image](https://github.com/user-attachments/assets/2e86d0d6-3c70-453b-8c22-03e5f4aaeb36)
 
 ![image](https://github.com/user-attachments/assets/641fe9cb-fa7e-4db6-b267-3c535aed9d60)
 
 
-
-)
 
 PromptCraft is a lightweight Chrome extension powered by the **Gemini API** that helps you **rewrite, refine, and stylize prompts** effortlessly.
 
