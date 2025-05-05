@@ -1,147 +1,267 @@
-const API_KEY = 'API_KEY_HERE';
-const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
-
-const modifierInstructions = {
-  short: `
-Revise the user’s prompt so that ChatGPT will reply concisely and directly, omitting any unnecessary detail.  
-**Output only** the revised prompt.
-
-Original prompt:
-`,
-  educational: `
-Revise the user’s prompt so that ChatGPT will reply in an educational, step-by-step format—clear explanations, definitions, and examples.  
-**Output only** the revised prompt.
-
-Original prompt:
-
-`,
-  prioritizeVisualizations: `
-Revise the user’s prompt so ChatGPT will generate rich, inline markdown visuals alongside its explanation:
-– Mermaid diagrams illustrating key concepts
-– ASCII art showing data structures and pointers
-– Markdown tables summarizing properties or operations
-– Flowcharts or charts depicting workflows or processes
-**Output only** the revised prompt.
-
-Original prompt:
-`,
-  creative: `
-Revise the user’s prompt so that ChatGPT will reply with imaginative, engaging, and thought-provoking style.  
-**Output only** the revised prompt.
-
-Original prompt:
-`,
-  technical: `
-Revise the user’s prompt so that ChatGPT will reply with precise, structured, and detail-oriented technical content.  
-**Output only** the revised prompt.
-
-Original prompt:
-`,
+// Prompt templates - Updated for more direct instructions
+const templates = {
+  short: `Rewrite the following prompt to be more concise and direct, providing only the rewritten prompt as the result:\n{{input}}`,
+  detailed: `Rewrite the following prompt to be more detailed and specific, suitable for eliciting a comprehensive response. Provide only the rewritten prompt as the result:\n{{input}}`,
+  creative: `Rewrite the following prompt to be more creative and imaginative, encouraging an unconventional or artistic response. Provide only the rewritten prompt as the result:\n{{input}}`,
+  educational: `Rewrite the following prompt to be more educational and informative, suitable for learning or explaining a topic. Provide only the rewritten prompt as the result:\n{{input}}`,
+  professional: `Rewrite the following prompt to have a more professional and formal tone, suitable for a business or academic context. Provide only the rewritten prompt as the result:\n{{input}}`,
+  casual: `Rewrite the following prompt to have a more casual and conversational tone. Provide only the rewritten prompt as the result:\n{{input}}`,
+  prioritize_visualizations: `Rewrite the following prompt to emphasize requesting visual outputs, diagrams, or charts. Provide only the rewritten prompt as the result:\n{{input}}`,
+  technical: `Rewrite the following prompt to be more technical and precise, suitable for experts or specific domains. Provide only the rewritten prompt as the result:\n{{input}}`
 };
 
+// DOM Elements
+const mainPage = document.getElementById('main-page');
+const settingsPage = document.getElementById('settings-page');
+const settingsBtn = document.getElementById('settings-btn');
+const backBtn = document.getElementById('back-btn');
+const saveSettingsBtn = document.getElementById('save-settings');
+const showKeyBtn = document.getElementById('show-key');
+const apiKeyInput = document.getElementById('api-key');
+const rewriteBtn = document.getElementById('rewrite');
+const inputTextarea = document.getElementById('input');
+const outputContainer = document.getElementById('output-container');
+const outputElement = document.getElementById('output');
+const copyBtn = document.getElementById('copy-btn');
+const saveNotification = document.createElement('div');
+saveNotification.className = 'save-notification';
+saveNotification.textContent = 'Settings saved successfully!';
+document.body.appendChild(saveNotification);
 
-document.getElementById('rewrite').addEventListener('click', async () => {
-  const input = document.getElementById('input').value.trim();
-  if (!input) {
-    alert('Please enter a prompt.');
-    return;
-  }
-  
-  // Automatically resize input field based on content
-  autoResize(document.getElementById('input'));
-  
-  const modifier = document.getElementById('modifier').value;
-  const instruction = modifierInstructions[modifier] || '';
-  
-  // Improved prompt structure
-  const promptText = `${instruction}\n\nOriginal prompt:\n${input}\n\nPlease provide only the rewritten prompt without explanations or additional text.`;
+// Page Navigation
+settingsBtn?.addEventListener('click', () => {
+  mainPage.classList.remove('active');
+  settingsPage.classList.add('active');
+});
 
-  const rewriteBtn = document.getElementById('rewrite');
-  rewriteBtn.disabled = true;
-  rewriteBtn.innerText = 'Rewriting...';
-  rewriteBtn.classList.add('rewriting');
+backBtn?.addEventListener('click', () => {
+  settingsPage.classList.remove('active');
+  mainPage.classList.add('active');
+});
 
-  // Show loading state
-  document.getElementById('input').classList.add('loading');
-  document.getElementById('modifier').classList.add('loading');
-
-  try {
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{ text: promptText }]
-        }],
-        generationConfig: {
-          temperature: 0.3
-        }
-      })
-    });
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error('API error details:', res.status, errText);
-      throw new Error(`API error ${res.status}${errText ? ': ' + errText : ''}`);
-    }
-    const data = await res.json();
-    if (data.error) {
-      console.error('API response error', data.error);
-      throw new Error(data.error.message);
-    }
-    const output = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!output) throw new Error('No output from API');
-
-    document.getElementById('output').value = output;
-    document.getElementById('output-container').classList.remove('hidden');
-  } catch (err) {
-    console.error(err);
-    alert(`Error rewriting prompt: ${err.message}`);
-  } finally {
-    rewriteBtn.disabled = false;
-    rewriteBtn.innerText = 'Rewrite Prompt';
-    rewriteBtn.classList.remove('rewriting');
-    document.getElementById('input').classList.remove('loading');
-    document.getElementById('modifier').classList.remove('loading');
+// Toggle API Key visibility
+showKeyBtn?.addEventListener('click', () => {
+  if (apiKeyInput.type === 'password') {
+    apiKeyInput.type = 'text';
+    showKeyBtn.textContent = 'Hide';
+  } else {
+    apiKeyInput.type = 'password';
+    showKeyBtn.textContent = 'Show';
   }
 });
 
-document.getElementById('copy').addEventListener('click', () => {
-  const output = document.getElementById('output').value;
-  if (!output) return;
-  navigator.clipboard.writeText(output).then(() => {
-    const copyBtn = document.getElementById('copy');
-    copyBtn.innerText = 'Copied!';
-    copyBtn.style.background = 'var(--accent)';
+// Save settings with nice UI indication
+saveSettingsBtn?.addEventListener('click', () => {
+  const apiKey = apiKeyInput.value.trim();
+  console.log('Attempting to save API key:', apiKey ? '******' : '(empty)'); // Log masking the key
+  
+  // Save to Chrome storage
+  chrome.storage.sync.set({ apiKey }, () => {
+    if (chrome.runtime.lastError) {
+      console.error('Error saving settings:', chrome.runtime.lastError);
+      alert('Error saving settings. Check console for details.');
+      return;
+    }
+    console.log('API key saved successfully.');
+    // Show success feedback
+    saveSettingsBtn.textContent = 'Saved!';
+    
+    // Show notification
+    saveNotification.classList.add('show');
     setTimeout(() => {
-      copyBtn.innerText = 'Copy to Clipboard';
-      copyBtn.style.background = 'var(--gradient)';
+      saveNotification.classList.remove('show');
+    }, 3000);
+    
+    setTimeout(() => {
+      saveSettingsBtn.textContent = 'Save Settings';
+      // Return to main page
+      settingsPage.classList.remove('active');
+      mainPage.classList.add('active');
+    }, 1500);
+  });
+});
+
+// Load settings on popup open
+document.addEventListener('DOMContentLoaded', () => {
+  console.log('Popup loaded. Attempting to load API key from storage.');
+  chrome.storage.sync.get(['apiKey'], (result) => {
+    if (chrome.runtime.lastError) {
+      console.error('Error loading settings:', chrome.runtime.lastError);
+      alert('Error loading settings. Check console for details.');
+      return;
+    }
+    const loadedApiKey = result.apiKey;
+    console.log('API key loaded from storage:', loadedApiKey ? '******' : '(not found)'); // Log masking the key
+    if (loadedApiKey) {
+      apiKeyInput.value = loadedApiKey;
+      console.log('API key input field populated.');
+    } else {
+      console.log('No API key found in storage.');
+    }
+  });
+  
+  // Auto-resize textarea
+  inputTextarea.addEventListener('input', function() {
+    autoResize(this);
+  });
+});
+
+// Copy enhanced prompt to clipboard
+copyBtn?.addEventListener('click', () => {
+  const text = outputElement.textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    copyBtn.textContent = '✓';
+    setTimeout(() => {
+      copyBtn.textContent = '📋';
     }, 2000);
   });
 });
 
-document.getElementById('input').placeholder = 'Enter a prompt...';
-document.getElementById('modifier').placeholder = 'Select a modifier...';
+// Enhance prompt
+rewriteBtn?.addEventListener('click', async () => {
+  const input = inputTextarea.value.trim();
+  const modifier = document.getElementById('modifier').value;
+  
+  if (!input) {
+    alert('Please enter a prompt first.');
+    return;
+  }
+  
+  // Show loading state
+  rewriteBtn.textContent = 'Enhancing...';
+  rewriteBtn.disabled = true;
+  outputContainer.classList.add('hidden');
+  
+  try {
+    // Get API key from storage
+    console.log('Enhance button clicked. Attempting to retrieve API key for use.');
+    chrome.storage.sync.get(['apiKey'], async (result) => {
+      if (chrome.runtime.lastError) {
+        console.error('Error retrieving API key for API call:', chrome.runtime.lastError);
+        alert('Could not retrieve API key from storage. Please save it again.');
+        rewriteBtn.textContent = 'Enhance Prompt';
+        rewriteBtn.disabled = false;
+        return;
+      }
+      
+      const apiKeyToUse = result.apiKey;
+      console.log('API key retrieved for use:', apiKeyToUse ? '******' : '(not found)');
+      
+      if (!apiKeyToUse) {
+        alert('Please set your API key in settings first.');
+        settingsPage.classList.add('active');
+        mainPage.classList.remove('active');
+        rewriteBtn.textContent = 'Enhance Prompt';
+        rewriteBtn.disabled = false;
+        return;
+      }
+      
+      try {
+        const template = templates[modifier].replace('{{input}}', input);
+        const response = await callGeminiAPI(template, apiKeyToUse);
+        
+        // Display result
+        outputElement.textContent = response;
+        outputContainer.classList.remove('hidden');
+        outputContainer.classList.add('visible');
+      } catch (error) {
+        console.error('API Error:', error);
+        alert(`Error: ${error.message || 'Failed to enhance prompt. Please check your API key and try again.'}`);
+      } finally {
+        // Reset button state
+        rewriteBtn.textContent = 'Enhance Prompt';
+        rewriteBtn.disabled = false;
+      }
+    });
+  } catch (error) {
+    console.error('General Error during enhance process:', error);
+    alert('An unexpected error occurred. Please try again.');
+    rewriteBtn.textContent = 'Enhance Prompt';
+    rewriteBtn.disabled = false;
+  }
+});
 
+// Call Gemini API - Updated endpoint
+async function callGeminiAPI(prompt, apiKey) {
+  // Use the v1beta endpoint and gemini-1.5-flash model
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  
+  try {
+    console.log('Calling Gemini API with prompt:', prompt);
+    const requestBody = {
+      contents: [{
+        parts: [{ text: prompt }]
+      }],
+      generationConfig: {
+        temperature: 0.4,
+        topK: 32,
+        topP: 1,
+        maxOutputTokens: 500
+      }
+    };
+    
+    console.log('Request body:', JSON.stringify(requestBody));
+    
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestBody)
+    });
+    
+    console.log('API Response Status:', response.status);
+    
+    if (!response.ok) {
+      let errorBody = 'Could not read error body.';
+      try {
+        // Attempt to read the response body for more detailed error info
+        errorBody = await response.text(); 
+        console.error('API Error Body:', errorBody); // Log the raw error body
+      } catch (e) {
+        console.error('Failed to read error response body:', e);
+      }
+      // Include status and potentially the body in the error message
+      throw new Error(`API error (${response.status}): ${errorBody.substring(0, 100)}... Check console for full body.`); 
+    }
+    
+    const data = await response.json();
+    console.log('API Response Data:', JSON.stringify(data));
+    
+    if (!data.candidates || data.candidates.length === 0) {
+      throw new Error('No response from API');
+    }
+    
+    if (data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts.length > 0) {
+      return data.candidates[0].content.parts[0].text;
+    } else {
+      console.error('Invalid response format:', JSON.stringify(data));
+      throw new Error('Invalid response format from API');
+    }
+  } catch (error) {
+    console.error('API call failed:', error);
+    throw error;
+  }
+}
+
+// Add interactive background effects
+document.addEventListener('mousemove', (e) => {
+  const blobs = document.querySelectorAll('.gradient-blob');
+  const rect = document.body.getBoundingClientRect();
+  const mouseX = (e.clientX - rect.left) / rect.width;
+  const mouseY = (e.clientY - rect.top) / rect.height;
+  
+  blobs.forEach((blob, index) => {
+    const offsetX = (mouseX - 0.5) * (20 + index * 5) * (index % 2 === 0 ? 1 : -1);
+    const offsetY = (mouseY - 0.5) * (20 + index * 5) * (index % 2 === 0 ? -1 : 1);
+    
+    blob.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
+  });
+});
+
+// Automatically resize input field based on content
 function autoResize(element) {
   element.style.height = 'auto';
   const newHeight = Math.max(100, Math.min(element.scrollHeight, 300));
   element.style.height = newHeight + 'px';
-  
-  // Adjust font size based on content length
-  if (element.value.length > 500) {
-    element.style.fontSize = '13px';
-  } else if (element.value.length > 1000) {
-    element.style.fontSize = '12px';
-  } else {
-    element.style.fontSize = '14px';
-  }
 }
-
-// Initialize textarea sizing on load
-window.addEventListener('DOMContentLoaded', () => {
-  const textareas = document.querySelectorAll('textarea');
-  textareas.forEach(textarea => {
-    autoResize(textarea);
-    textarea.addEventListener('input', () => autoResize(textarea));
-  });
-});

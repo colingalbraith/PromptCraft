@@ -4,8 +4,14 @@
   "short_name": "PromptMod",
   "version": "1.0",
   "description": "Enhance your AI prompts",
-  "permissions": ["clipboardWrite"],
-  "host_permissions": ["https://generativelanguage.googleapis.com/*"],
+  "permissions": [
+    "storage",
+    "clipboardWrite"
+  ],
+  "host_permissions": [
+    "https://generativelanguage.googleapis.com/*",
+    "https://api.gemini.ai/*"
+  ],
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
