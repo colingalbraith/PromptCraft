@@ -34,7 +34,7 @@ Tired of manually typing or tweaking the same prompts over and over? PromptCraft
 
 1. **Fork or Clone the Repository**
    ```bash
-   git clone https://github.com/your-username/PromptCraft.git
+   git clone https://github.com/colingalbraith/PromptCraft.git
    ```
 
 2. **Insert Your Gemini API Key**  
