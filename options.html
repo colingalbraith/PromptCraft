@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>PromptCraft Options</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      padding: 20px;
+      max-width: 600px;
+      margin: 0 auto;
+      color: #333;
+    }
+    h1 {
+      color: #7c3aed;
+      margin-bottom: 20px;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+    input[type="text"] {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 16px;
+    }
+    button {
+      background-color: #7c3aed;
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 4px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    button:hover {
+      background-color: #6d28d9;
+    }
+    .status {
+      margin-top: 16px;
+      padding: 10px;
+      border-radius: 4px;
+      display: none;
+    }
+    .success {
+      background-color: #d1fae5;
+      color: #065f46;
+      display: block;
+    }
+    .error {
+      background-color: #fee2e2;
+      color: #b91c1c;
+      display: block;
+    }
+    .api-info {
+      margin-top: 20px;
+      padding: 15px;
+      background-color: #f3f4f6;
+      border-radius: 4px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .api-info a {
+      color: #7c3aed;
+      text-decoration: none;
+    }
+    .api-info a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <h1>PromptCraft Options</h1>
+  
+  <div class="form-group">
+    <label for="apiKey">Gemini API Key</label>
+    <input type="text" id="apiKey" placeholder="Enter your Gemini API key">
+  </div>
+  
+  <button id="saveButton">Save</button>
+  
+  <div id="status" class="status"></div>
+  
+  <div class="api-info">
+    <p><strong>How to get a Gemini API Key:</strong></p>
+    <ol>
+      <li>Go to <a href="https://ai.google.dev/" target="_blank">Google AI Studio</a></li>
+      <li>Sign in with your Google account</li>
+      <li>Navigate to the API Keys section</li>
+      <li>Create a new API key or use an existing one</li>
+      <li>Copy and paste the key above</li>
+    </ol>
+    <p>Your API key is stored securely in your browser's local storage and is only used to enhance prompts.</p>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

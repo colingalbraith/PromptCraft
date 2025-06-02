@@ -1,0 +1,470 @@
+:root {
+  --primary: #F3C623;
+  --secondary: #FFB22C;
+  --accent: #FA812F;
+  --text: #333;
+  --light-text: #666;
+  --bg: #FEF3E2;
+  --card-bg: rgba(255, 255, 255, 0.85);
+  --shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --border-radius: 12px;
+  --transition: all 0.3s ease;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 400px;
+  height: 500px;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  font-family: 'Poppins', sans-serif;
+  color: var(--text);
+  position: relative;
+}
+
+body {
+  background: var(--primary);
+}
+
+/* Gradient Background */
+.gradient-background {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+}
+
+.gradient-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(30px);
+  opacity: 0.8;
+}
+
+.blob1 {
+  background: var(--primary);
+  width: 200px;
+  height: 200px;
+  top: -50px;
+  left: -50px;
+  animation: float1 15s infinite alternate ease-in-out;
+}
+
+.blob2 {
+  background: var(--secondary);
+  width: 250px;
+  height: 250px;
+  bottom: -100px;
+  right: -100px;
+  animation: float2 18s infinite alternate ease-in-out;
+}
+
+.blob3 {
+  background: var(--accent);
+  width: 150px;
+  height: 150px;
+  top: 60%;
+  left: -30px;
+  animation: float3 12s infinite alternate ease-in-out;
+}
+
+.blob4 {
+  background: var(--secondary);
+  width: 180px;
+  height: 180px;
+  top: 20%;
+  right: -50px;
+  animation: float4 20s infinite alternate ease-in-out;
+}
+
+@keyframes float1 {
+  0% { transform: translate(0, 0); }
+  100% { transform: translate(30px, 40px); }
+}
+
+@keyframes float2 {
+  0% { transform: translate(0, 0); }
+  100% { transform: translate(-40px, -30px); }
+}
+
+@keyframes float3 {
+  0% { transform: translate(0, 0); }
+  100% { transform: translate(20px, -40px); }
+}
+
+@keyframes float4 {
+  0% { transform: translate(0, 0); }
+  100% { transform: translate(-30px, 30px); }
+}
+
+/* App Container */
+.app-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+}
+
+/* Page System */
+.page {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  padding: 20px;
+  background: var(--card-bg);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  transform: translateX(100%);
+  transition: transform 0.3s ease;
+  overflow-y: auto;
+}
+
+.page.active {
+  transform: translateX(0);
+}
+
+/* Header */
+.header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+  position: relative;
+}
+
+.logo {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  object-fit: contain;
+  margin-right: 12px;
+  box-shadow: var(--shadow);
+}
+
+h1 {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--accent);
+  margin: 0;
+  flex-grow: 1;
+}
+
+/* Add styles for the privacy note */
+.privacy-note {
+  font-size: 0.8em;
+  color: #aaa; /* Lighter grey */
+  margin-top: 5px;
+  margin-bottom: 15px;
+  text-align: center;
+}
+
+/* Buttons */
+.primary-btn {
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: var(--border-radius);
+  padding: 12px 20px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+  width: 100%;
+  text-align: center;
+  box-shadow: var(--shadow);
+}
+
+.primary-btn:hover {
+  background: var(--secondary);
+  transform: translateY(-2px);
+}
+
+.icon-btn {
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: var(--transition);
+}
+
+.icon-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.toggle-btn {
+  background: var(--secondary);
+  color: white;
+  border: none;
+  border-radius: var(--border-radius);
+  padding: 6px 12px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.toggle-btn:hover {
+  background: var(--accent);
+}
+
+/* Input Groups */
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--light-text);
+}
+
+input, select, textarea {
+  padding: 12px;
+  border-radius: var(--border-radius);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  font-family: 'Poppins', sans-serif;
+  font-size: 14px;
+  background: rgba(255, 255, 255, 0.8);
+  transition: var(--transition);
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(250, 129, 47, 0.2);
+}
+
+textarea {
+  resize: none;
+  height: 120px;
+}
+
+/* Settings Page */
+.settings-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Container for API key input and button */
+.api-key-container {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 15px;
+  width: 100%;
+}
+
+.api-key-container input[type="password"],
+.api-key-container input[type="text"] {
+  flex-grow: 1;
+  padding: 10px;
+  height: 38px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  box-sizing: border-box;
+}
+
+.api-key-container .toggle-btn { 
+  height: 38px;
+  padding: 0 12px;
+  border: none;
+  background-color: var(--accent);
+  color: white;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.api-key-container .toggle-btn:hover {
+  transform: scale(1.05);
+}
+
+/* Adjust Save Settings button margin */
+#save-settings {
+  margin-top: 0;
+  width: 100%;
+}
+
+/* App Info */
+.app-info {
+  margin-top: 30px;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: var(--border-radius);
+  padding: 15px;
+  font-size: 14px;
+}
+
+.app-info h3 {
+  font-size: 18px;
+  margin-bottom: 10px;
+  color: var(--accent);
+}
+
+.app-info h4 {
+  font-size: 15px;
+  margin: 15px 0 8px;
+  color: var(--secondary);
+}
+
+.app-info p {
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+
+.app-info ol {
+  margin-left: 20px;
+  margin-bottom: 15px;
+}
+
+.app-info li {
+  margin-bottom: 5px;
+}
+
+.app-info a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.app-info a:hover {
+  text-decoration: underline;
+}
+
+.version {
+  font-size: 12px;
+  color: var(--light-text);
+  text-align: right;
+  margin-top: 15px;
+  margin-bottom: 0 !important;
+}
+
+/* Output Container */
+#output-container {
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: var(--border-radius);
+  padding: 15px;
+  margin-top: 10px;
+  box-shadow: var(--shadow);
+  transition: var(--transition);
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+}
+
+#output-container.visible {
+  max-height: 200px;
+  opacity: 1;
+}
+
+.output-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.output-header h3 {
+  font-size: 16px;
+  margin: 0;
+  color: var(--accent);
+}
+
+.output-text {
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+/* Save Notification */
+.save-notification {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-100px);
+  background: var(--accent);
+  color: white;
+  padding: 12px 20px;
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow);
+  z-index: 1000;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+  opacity: 0;
+  text-align: center;
+  font-weight: 500;
+}
+
+.save-notification.show {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+}
+
+/* Loading State */
+@keyframes pulse-bg {
+  0% { background-color: var(--accent); }
+  50% { background-color: var(--secondary); }
+  100% { background-color: var(--accent); }
+}
+
+.primary-btn:disabled {
+  animation: pulse-bg 2s infinite;
+  opacity: 0.9;
+  cursor: not-allowed;
+}
+
+/* Utility Classes */
+.hidden {
+  display: none;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+.api-key-link {
+  font-size: 14px;
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+  display: block;
+}
+
+.api-key-link:hover {
+  text-decoration: underline;
+}

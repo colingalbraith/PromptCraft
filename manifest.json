@@ -1,0 +1,59 @@
+{
+  "manifest_version": 3,
+  "name": "PromptCraft",
+  "short_name": "PromptMod",
+  "version": "1.0",
+  "description": "Enhance your AI prompts",
+  "permissions": [
+    "storage",
+    "clipboardWrite",
+    "activeTab",
+    "contextMenus",
+    "tabs"
+  ],
+  "host_permissions": [
+    "*://*.chatgpt.com/*",
+    "*://*.grok.com/*",
+    "*://*.gemini.google.com/*",
+    "*://*.deepseek.com/*",
+    "https://generativelanguage.googleapis.com/*",
+    "https://api.gemini.ai/*",
+    "*://*.huggingface.co/*",
+    "*://*.openrouter.ai/*"
+
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.deepseek.com/*",
+        "*://*.gemini.google.com/*",
+        "*://*.chatgpt.com/*",
+        "*://*.claude.ai/*",
+        "*://*.perplexity.ai/*",
+        "*://*.grok.com/*",
+        "*://*.x.com/*/grok/*",
+        "*://*.huggingface.co/*",
+        "*://*.openrouter.ai/*"
+
+      ],
+      "js": ["content.js"]
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "options_page": "options.html"
+}

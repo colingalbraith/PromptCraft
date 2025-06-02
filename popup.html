@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PromptCraft</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="popup.css">
+  <style>
+    html, body {
+      width: 400px;
+      height: 500px;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background-color: transparent !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Main content -->
+    <div id="main-page" class="page active">
+      <div class="header">
+        <img src="icon.png" class="logo" alt="PromptCraft">
+        <h1>PromptCraft</h1>
+        <button id="settings-btn" class="icon-btn" title="Settings">⚙️</button>
+      </div>
+      
+      <div class="input-group">
+        <label for="modifier">Choose a style:</label>
+        <select id="modifier">
+          <option value="short">Concise</option>
+          <option value="educational">Educational</option>
+          <option value="prioritize_visualizations">Visual-focused</option>
+          <option value="creative">Creative</option>
+          <option value="technical">Technical</option>
+        </select>
+      </div>
+      
+      <div class="input-group">
+        <label for="input">Your prompt:</label>
+        <textarea id="input" placeholder="Enter your prompt here..."></textarea>
+      </div>
+      
+      <button id="rewrite" class="primary-btn">Enhance Prompt</button>
+      
+      <div id="output-container" class="hidden">
+        <div class="output-header">
+          <h3>Enhanced Prompt</h3>
+          <button id="copy-btn" class="icon-btn" title="Copy to clipboard">📋</button>
+        </div>
+        <div id="output" class="output-text"></div>
+      </div>
+    </div>
+    
+    <!-- Settings page -->
+    <div id="settings-page" class="page">
+      <div class="header">
+        <button id="back-btn" class="icon-btn" title="Back">←</button>
+        <h1>Settings</h1>
+      </div>
+      
+      <div class="settings-container">
+        <div class="input-group">
+          <label for="api-key">Gemini API Key:</label>
+          <div class="api-key-container">
+            <input type="password" id="api-key" placeholder="Enter your Gemini API Key">
+            <button id="show-key" class="toggle-btn">Show</button>
+          </div>
+        </div>
+        
+        <button id="save-settings" class="primary-btn">Save Settings</button>
+        
+        <div class="app-info">
+          <h3>About PromptCraft</h3>
+          <p>PromptCraft helps you create better prompts for AI systems like ChatGPT, Claude, or Gemini.</p>
+          <p>Simply enter your prompt, choose a style, and let PromptCraft enhance it!</p>
+          <p class="privacy-note">Your API key is stored locally using Chrome's secure storage and is never sent to PromptCraft servers.</p>
+          
+          <h4>How to get a Gemini API Key:</h4>
+          <ol>
+            <li>Visit <a href="https://makersuite.google.com/app/apikey" target="_blank">Google AI Studio</a></li>
+            <li>Sign in with your Google account</li>
+            <li>Create a new API key</li>
+            <li>Copy and paste it here</li>
+          </ol>
+          
+          <p class="version">Version 1.0.0</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Animated background -->
+  <div class="gradient-background">
+    <div class="gradient-blob blob1"></div>
+    <div class="gradient-blob blob2"></div>
+    <div class="gradient-blob blob3"></div>
+    <div class="gradient-blob blob4"></div>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>
