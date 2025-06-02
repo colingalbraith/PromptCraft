@@ -1,10 +1,20 @@
 # PromptCraft – Chrome Extension for Effortless Prompt Engineering
 
-![Untitled design (5)](https://github.com/user-attachments/assets/7b249ceb-b7cd-47d7-80e2-33b805942187)
 
-![ChatGPT Image May 4, 2025, 10_53_52 PM](https://github.com/user-attachments/assets/088e3223-1f7c-4907-b436-e089c9495a5e)
 
-![Untitled design (7)](https://github.com/user-attachments/assets/66b18fa1-9001-457f-8632-56464d05dc43)
+https://github.com/user-attachments/assets/a64a511d-0ccc-4a24-b761-bea628b81a16
+
+<div align="center">
+
+<table>
+  <tr>
+    <td><img src="https://github.com/user-attachments/assets/7b249ceb-b7cd-47d7-80e2-33b805942187" alt="Untitled design (5)" width="350"/></td>
+    <td><img src="https://github.com/user-attachments/assets/088e3223-1f7c-4907-b436-e089c9495a5e" alt="ChatGPT Image" width="550"/></td>
+    <td><img src="https://github.com/user-attachments/assets/66b18fa1-9001-457f-8632-56464d05dc43" alt="Untitled design (7)" width="550"/></td>
+  </tr>
+</table>
+
+</div>
 
 
 PromptCraft is a lightweight Chrome extension powered by the **Gemini API (`gemini-1.5-flash` model)** that helps you **rewrite, refine, and stylize prompts** effortlessly.
