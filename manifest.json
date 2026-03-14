@@ -62,17 +62,7 @@
   "web_accessible_resources": [
     {
       "resources": ["popup.html", "popup.css", "popup.js", "constants.js", "icon.png", "icons/*"],
-      "matches": [
-        "*://*.chatgpt.com/*",
-        "*://*.claude.ai/*",
-        "*://*.gemini.google.com/*",
-        "*://*.deepseek.com/*",
-        "*://*.perplexity.ai/*",
-        "*://*.grok.com/*",
-        "*://*.x.com/*",
-        "*://*.huggingface.co/*",
-        "*://*.openrouter.ai/*"
-      ]
+      "matches": ["<all_urls>"]
     }
   ],
   "icons": {
