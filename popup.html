@@ -6,102 +6,221 @@
   <title>PromptCraft</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="popup.css">
-  <style>
-    html, body {
-      width: 400px;
-      height: 500px;
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-      background-color: transparent !important;
-    }
-  </style>
 </head>
 <body>
-  <div class="app-container">
-    <!-- Main content -->
-    <div id="main-page" class="page active">
-      <div class="header">
-        <img src="icon.png" class="logo" alt="PromptCraft">
-        <h1>PromptCraft</h1>
-        <button id="settings-btn" class="icon-btn" title="Settings">⚙️</button>
-      </div>
-      
-      <div class="input-group">
-        <label for="modifier">Choose a style:</label>
-        <select id="modifier">
-          <option value="short">Concise</option>
-          <option value="educational">Educational</option>
-          <option value="prioritize_visualizations">Visual-focused</option>
-          <option value="creative">Creative</option>
-          <option value="technical">Technical</option>
-        </select>
-      </div>
-      
-      <div class="input-group">
-        <label for="input">Your prompt:</label>
-        <textarea id="input" placeholder="Enter your prompt here..."></textarea>
-      </div>
-      
-      <button id="rewrite" class="primary-btn">Enhance Prompt</button>
-      
-      <div id="output-container" class="hidden">
-        <div class="output-header">
-          <h3>Enhanced Prompt</h3>
-          <button id="copy-btn" class="icon-btn" title="Copy to clipboard">📋</button>
-        </div>
-        <div id="output" class="output-text"></div>
-      </div>
+  <!-- Rounded popup frame -->
+  <div class="popup-frame">
+
+    <!-- Animated background (inside frame so it clips) -->
+    <div class="gradient-background">
+      <div class="gradient-blob blob1"></div>
+      <div class="gradient-blob blob2"></div>
+      <div class="gradient-blob blob3"></div>
+      <div class="gradient-blob blob4"></div>
     </div>
-    
-    <!-- Settings page -->
-    <div id="settings-page" class="page">
-      <div class="header">
-        <button id="back-btn" class="icon-btn" title="Back">←</button>
-        <h1>Settings</h1>
-      </div>
-      
-      <div class="settings-container">
-        <div class="input-group">
-          <label for="api-key">Gemini API Key:</label>
-          <div class="api-key-container">
-            <input type="password" id="api-key" placeholder="Enter your Gemini API Key">
-            <button id="show-key" class="toggle-btn">Show</button>
+
+    <div class="app-container">
+
+      <!-- ─── Main Page ─── -->
+      <div id="main-page" class="page active">
+        <div class="header anim-item">
+          <img src="icon.png" class="logo" alt="PromptCraft">
+          <h1>PromptCraft</h1>
+          <button id="history-btn" class="icon-btn" title="History">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+          </button>
+          <button id="settings-btn" class="icon-btn" title="Settings">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+          </button>
+        </div>
+
+        <div class="style-picker anim-item">
+          <div class="label-row">
+            <label>Style</label>
+          </div>
+          <div id="style-chips" class="style-chips">
+            <!-- Populated by JS -->
           </div>
         </div>
-        
-        <button id="save-settings" class="primary-btn">Save Settings</button>
-        
-        <div class="app-info">
-          <h3>About PromptCraft</h3>
-          <p>PromptCraft helps you create better prompts for AI systems like ChatGPT, Claude, or Gemini.</p>
-          <p>Simply enter your prompt, choose a style, and let PromptCraft enhance it!</p>
-          <p class="privacy-note">Your API key is stored locally using Chrome's secure storage and is never sent to PromptCraft servers.</p>
-          
-          <h4>How to get a Gemini API Key:</h4>
-          <ol>
-            <li>Visit <a href="https://makersuite.google.com/app/apikey" target="_blank">Google AI Studio</a></li>
-            <li>Sign in with your Google account</li>
-            <li>Create a new API key</li>
-            <li>Copy and paste it here</li>
-          </ol>
-          
-          <p class="version">Version 1.0.0</p>
+
+        <div class="input-group anim-item">
+          <div class="label-row">
+            <label for="input">Your prompt</label>
+            <button id="clear-btn" class="text-btn" title="Clear">Clear</button>
+          </div>
+          <textarea id="input" placeholder="Enter your prompt here... (Ctrl+Enter to enhance)"></textarea>
+          <span id="char-count" class="char-count">0 chars</span>
         </div>
+
+        <div class="context-row anim-item">
+          <label class="context-toggle-label" for="include-context">
+            <input type="checkbox" id="include-context" checked>
+            <span class="context-toggle-text">Use conversation context</span>
+          </label>
+          <span id="context-indicator" class="context-indicator"></span>
+        </div>
+
+        <button id="rewrite" class="primary-btn anim-item">
+          <span class="btn-text">Enhance Prompt</span>
+          <span class="btn-shimmer"></span>
+        </button>
+
+        <div id="output-container">
+          <div class="output-header">
+            <h3>Enhanced Prompt</h3>
+            <button id="copy-btn" class="icon-btn" title="Copy to clipboard">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+            </button>
+          </div>
+          <div id="output" class="output-text"></div>
+        </div>
+
+        <div id="provider-status" class="provider-status anim-item">
+          <span class="provider-status-dot"></span>
+          <span id="provider-status-text">Loading...</span>
+        </div>
+      </div>
+
+      <!-- ─── Settings Page ─── -->
+      <div id="settings-page" class="page">
+        <div class="header">
+          <button id="back-from-settings" class="icon-btn" title="Back">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+          </button>
+          <h1>Settings</h1>
+        </div>
+
+        <div class="settings-section">
+          <label class="section-label">Active Provider</label>
+          <div class="provider-tabs">
+            <button id="provider-api-tab" class="provider-tab active">API</button>
+            <button id="provider-ollama-tab" class="provider-tab">Ollama</button>
+          </div>
+          <input type="radio" name="provider" id="provider-api" value="api" checked hidden>
+          <input type="radio" name="provider" id="provider-ollama" value="ollama" hidden>
+        </div>
+
+        <!-- API Settings -->
+        <div id="api-settings" class="settings-section">
+          <div class="api-provider-selector">
+            <button class="api-provider-btn active" data-provider="openai">OpenAI</button>
+            <button class="api-provider-btn" data-provider="gemini">Gemini</button>
+            <button class="api-provider-btn" data-provider="claude">Claude</button>
+          </div>
+          <div class="input-group compact">
+            <label for="api-key">API Key</label>
+            <div class="input-row">
+              <input type="password" id="api-key" placeholder="Enter your API key">
+              <button id="show-key" class="toggle-btn">Show</button>
+            </div>
+          </div>
+          <div class="input-group compact">
+            <label>Model</label>
+            <div class="custom-select" id="api-model-select">
+              <button class="custom-select-trigger" type="button">
+                <span class="custom-select-value">Select a model...</span>
+                <svg class="custom-select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </button>
+              <div class="custom-select-dropdown"></div>
+            </div>
+          </div>
+          <p id="api-hint" class="hint">Get a key at <a id="api-hint-link" href="#" target="_blank">OpenAI Platform</a></p>
+        </div>
+
+        <!-- Ollama Settings -->
+        <div id="ollama-settings" class="settings-section hidden">
+          <div class="input-group compact">
+            <label for="ollama-endpoint">Endpoint</label>
+            <input type="text" id="ollama-endpoint" placeholder="http://localhost:11434">
+          </div>
+          <div class="input-group compact">
+            <label>Model</label>
+            <div class="input-row">
+              <div class="custom-select" id="ollama-model-select">
+                <button class="custom-select-trigger" type="button">
+                  <span class="custom-select-value">Click refresh to load</span>
+                  <svg class="custom-select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
+                <div class="custom-select-dropdown"></div>
+              </div>
+              <button id="refresh-ollama-models" class="toggle-btn" title="Refresh models">↻</button>
+            </div>
+          </div>
+          <div id="ollama-status" class="connection-status"></div>
+        </div>
+
+        <!-- Presets -->
+        <div class="settings-section">
+          <div class="label-row">
+            <label class="section-label">Style Presets</label>
+            <button id="add-preset-btn" class="text-btn" title="Add preset">+ New</button>
+          </div>
+
+          <!-- Add/Edit form (hidden by default) -->
+          <div id="preset-form" class="preset-form hidden">
+            <input type="text" id="preset-name" placeholder="Preset name" maxlength="24">
+            <textarea id="preset-template" placeholder="Template... Use {{input}} for the user's prompt" rows="3"></textarea>
+            <div class="preset-form-actions">
+              <button id="preset-save" class="secondary-btn">Save Preset</button>
+              <button id="preset-cancel" class="text-btn">Cancel</button>
+            </div>
+          </div>
+
+          <div id="preset-list" class="preset-list">
+            <!-- Populated by JS — shows built-in + custom presets -->
+          </div>
+          <p class="hint">Edit any preset's template. Use <code>{{input}}</code> for the prompt and <code>{{context}}</code> for conversation context. Custom presets can be deleted.</p>
+        </div>
+
+        <button id="save-settings" class="primary-btn">Save Settings</button>
+
+        <div class="about-section">
+          <p class="privacy-note">Your settings are stored locally and never sent to external servers.</p>
+          <p class="version">PromptCraft v2.0</p>
+        </div>
+      </div>
+
+      <!-- ─── History Page ─── -->
+      <div id="history-page" class="page">
+        <div class="header">
+          <button id="back-from-history" class="icon-btn" title="Back">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+          </button>
+          <h1>History</h1>
+          <span id="history-count" class="history-count"></span>
+          <button id="clear-history" class="text-btn" title="Clear history">Clear</button>
+        </div>
+        <div class="history-search-row">
+          <input type="text" id="history-search" class="history-search" placeholder="Search history...">
+        </div>
+        <div id="history-list" class="history-list"></div>
       </div>
     </div>
   </div>
-  
-  <!-- Animated background -->
-  <div class="gradient-background">
-    <div class="gradient-blob blob1"></div>
-    <div class="gradient-blob blob2"></div>
-    <div class="gradient-blob blob3"></div>
-    <div class="gradient-blob blob4"></div>
-  </div>
-  
+
+  <!-- Toast notifications (outside frame so they can overflow) -->
+  <div id="toast-container"></div>
+
+  <script src="constants.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

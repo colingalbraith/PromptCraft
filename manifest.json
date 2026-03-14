@@ -1,28 +1,39 @@
 {
   "manifest_version": 3,
   "name": "PromptCraft",
-  "short_name": "PromptMod",
-  "version": "1.0",
-  "description": "Enhance your AI prompts",
+  "short_name": "PromptCraft",
+  "version": "2.0",
+  "description": "Enhance your AI prompts with OpenAI, Gemini, Claude, or local Ollama models",
   "permissions": [
     "storage",
     "clipboardWrite",
     "activeTab",
     "contextMenus",
-    "tabs"
+    "tabs",
+    "scripting"
   ],
   "host_permissions": [
+    "https://generativelanguage.googleapis.com/*",
+    "https://api.openai.com/*",
+    "https://api.anthropic.com/*",
+    "http://localhost:11434/*",
+    "http://127.0.0.1:11434/*",
     "*://*.chatgpt.com/*",
-    "*://*.grok.com/*",
+    "*://*.claude.ai/*",
     "*://*.gemini.google.com/*",
     "*://*.deepseek.com/*",
-    "https://generativelanguage.googleapis.com/*",
-    "https://api.gemini.ai/*",
+    "*://*.perplexity.ai/*",
+    "*://*.grok.com/*",
+    "*://*.x.com/*",
     "*://*.huggingface.co/*",
     "*://*.openrouter.ai/*"
-
   ],
   "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["panel.js"],
+      "run_at": "document_end"
+    },
     {
       "matches": [
         "*://*.deepseek.com/*",
@@ -34,7 +45,6 @@
         "*://*.x.com/*/grok/*",
         "*://*.huggingface.co/*",
         "*://*.openrouter.ai/*"
-
       ],
       "js": ["content.js"]
     }
@@ -43,17 +53,31 @@
     "service_worker": "background.js"
   },
   "action": {
-    "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",
       "128": "icons/icon128.png"
     }
   },
+  "web_accessible_resources": [
+    {
+      "resources": ["popup.html", "popup.css", "popup.js", "constants.js", "icon.png", "icons/*"],
+      "matches": [
+        "*://*.chatgpt.com/*",
+        "*://*.claude.ai/*",
+        "*://*.gemini.google.com/*",
+        "*://*.deepseek.com/*",
+        "*://*.perplexity.ai/*",
+        "*://*.grok.com/*",
+        "*://*.x.com/*",
+        "*://*.huggingface.co/*",
+        "*://*.openrouter.ai/*"
+      ]
+    }
+  ],
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
-  },
-  "options_page": "options.html"
+  }
 }
