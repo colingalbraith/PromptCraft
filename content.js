@@ -94,149 +94,188 @@
 
     const diff = computeDiff(originalText, enhancedText);
 
-    // Build highlighted HTML for original side (shows equal + removed)
-    let origHTML = '';
-    let enhHTML = '';
+    // Count changes for stats
+    let added = 0, removed = 0, unchanged = 0;
     for (const op of diff) {
-      const escaped = op.value
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-      // Preserve whitespace rendering
+      if (op.type === 'added') added++;
+      else if (op.type === 'removed') removed++;
+      else unchanged++;
+    }
+    const totalWords = added + removed + unchanged;
+    const changePercent = totalWords > 0 ? Math.round(((added + removed) / totalWords) * 100) : 0;
+
+    // Build unified diff HTML — shows all changes inline
+    let unifiedHTML = '';
+    for (const op of diff) {
+      const escaped = op.value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       const display = escaped.replace(/ /g, '&nbsp;').replace(/\n/g, '<br>');
       if (op.type === 'equal') {
-        origHTML += `<span>${display}</span>`;
-        enhHTML += `<span>${display}</span>`;
+        unifiedHTML += `<span style="color:rgba(255,255,255,0.85)">${display}</span>`;
       } else if (op.type === 'removed') {
-        origHTML += `<span style="background:rgba(239,68,68,0.18);color:#f87171;text-decoration:line-through;text-decoration-color:rgba(248,113,113,0.6);border-radius:2px;padding:1px 0;">${display}</span>`;
+        unifiedHTML += `<span style="background:rgba(239,68,68,0.2);color:#fca5a5;text-decoration:line-through;text-decoration-color:rgba(252,165,165,0.5);border-radius:3px;padding:2px 1px">${display}</span>`;
       } else if (op.type === 'added') {
-        enhHTML += `<span style="background:rgba(34,197,94,0.18);color:#4ade80;border-radius:2px;padding:1px 0;">${display}</span>`;
+        unifiedHTML += `<span style="background:rgba(34,197,94,0.2);color:#86efac;border-radius:3px;padding:2px 1px">${display}</span>`;
       }
     }
 
-    // Create overlay
-    const overlay = document.createElement('div');
-    overlay.id = 'promptcraft-diff-overlay';
-    Object.assign(overlay.style, {
-      position: 'fixed',
-      top: '0',
-      left: '0',
-      width: '100vw',
-      height: '100vh',
-      background: 'rgba(0, 0, 0, 0.6)',
-      backdropFilter: 'blur(4px)',
-      zIndex: '2147483647',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-      padding: '20px',
-      boxSizing: 'border-box',
-    });
-
-    // Click backdrop to close
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) removeDiffOverlay();
-    });
-
-    // Modal card
-    const modal = document.createElement('div');
-    Object.assign(modal.style, {
-      background: '#1a1a2e',
-      borderRadius: '16px',
-      boxShadow: '0 24px 80px rgba(0, 0, 0, 0.5)',
-      border: '1px solid rgba(255, 255, 255, 0.1)',
-      width: '100%',
-      maxWidth: '900px',
-      maxHeight: '85vh',
-      display: 'flex',
-      flexDirection: 'column',
-      overflow: 'hidden',
-      animation: 'promptcraft-diff-in 0.25s ease-out',
-    });
-
-    // Inject animation keyframe
+    // Inject styles
     if (!document.getElementById('promptcraft-diff-styles')) {
       const s = document.createElement('style');
       s.id = 'promptcraft-diff-styles';
       s.textContent = `
-        @keyframes promptcraft-diff-in {
-          from { opacity: 0; transform: scale(0.95) translateY(10px); }
-          to   { opacity: 1; transform: scale(1) translateY(0); }
-        }
+        @keyframes pc-diff-in { from { opacity:0; transform:scale(0.96) translateY(12px); } to { opacity:1; transform:scale(1) translateY(0); } }
+        @keyframes pc-diff-fade { from { opacity:0; } to { opacity:1; } }
+        .pc-diff-tab { padding:8px 16px; font-size:12px; font-weight:600; border:none; border-radius:8px; cursor:pointer; transition:all 0.2s; font-family:inherit; }
+        .pc-diff-tab:hover { opacity:0.9; }
+        .pc-diff-tab.active { background:rgba(212,135,46,0.2); color:#D4872E; }
+        .pc-diff-tab:not(.active) { background:transparent; color:rgba(255,255,255,0.4); }
+        .pc-diff-scroll::-webkit-scrollbar { width:5px; }
+        .pc-diff-scroll::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.1); border-radius:5px; }
+        .pc-diff-scroll::-webkit-scrollbar-thumb:hover { background:rgba(255,255,255,0.2); }
       `;
       document.head.appendChild(s);
     }
 
+    // Backdrop
+    const overlay = document.createElement('div');
+    overlay.id = 'promptcraft-diff-overlay';
+    Object.assign(overlay.style, {
+      position:'fixed', top:'0', left:'0', width:'100vw', height:'100vh',
+      background:'rgba(0,0,0,0.7)', zIndex:'2147483647',
+      display:'flex', alignItems:'center', justifyContent:'center',
+      fontFamily:"'Satoshi','Inter',system-ui,-apple-system,sans-serif",
+      padding:'24px', boxSizing:'border-box',
+      animation:'pc-diff-fade 0.2s ease',
+    });
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) removeDiffOverlay(); });
+
+    // Modal
+    const modal = document.createElement('div');
+    Object.assign(modal.style, {
+      background:'#12192B', borderRadius:'20px',
+      boxShadow:'0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.06)',
+      width:'100%', maxWidth:'720px', maxHeight:'80vh',
+      display:'flex', flexDirection:'column', overflow:'hidden',
+      animation:'pc-diff-in 0.3s cubic-bezier(0.34,1.56,0.64,1)',
+    });
+
     // Header
     const header = document.createElement('div');
     Object.assign(header.style, {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      padding: '16px 20px',
-      borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-      flexShrink: '0',
+      display:'flex', alignItems:'center', justifyContent:'space-between',
+      padding:'18px 24px', borderBottom:'1px solid rgba(255,255,255,0.06)', flexShrink:'0',
     });
 
-    const titleArea = document.createElement('div');
-    titleArea.style.display = 'flex';
-    titleArea.style.alignItems = 'center';
-    titleArea.style.gap = '10px';
+    const titleWrap = document.createElement('div');
+    Object.assign(titleWrap.style, { display:'flex', alignItems:'center', gap:'12px' });
+    titleWrap.innerHTML = `
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D4872E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+      <span style="font-size:15px;font-weight:700;color:rgba(255,255,255,0.95)">Prompt Changes</span>
+      <span style="font-size:11px;font-weight:600;color:#D4872E;background:rgba(212,135,46,0.12);padding:3px 10px;border-radius:100px">${changePercent}% changed</span>
+    `;
 
-    const titleText = document.createElement('span');
-    titleText.textContent = 'Original';
-    Object.assign(titleText.style, {
-      fontSize: '14px',
-      fontWeight: '600',
-      color: 'rgba(255, 255, 255, 0.9)',
+    const closeBtn = document.createElement('button');
+    Object.assign(closeBtn.style, {
+      background:'rgba(255,255,255,0.06)', color:'rgba(255,255,255,0.5)', border:'none',
+      borderRadius:'8px', width:'32px', height:'32px', fontSize:'16px', cursor:'pointer',
+      display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s',
+    });
+    closeBtn.innerHTML = '&#10005;';
+    closeBtn.addEventListener('mouseenter', () => { closeBtn.style.background = 'rgba(255,255,255,0.12)'; closeBtn.style.color = 'rgba(255,255,255,0.8)'; });
+    closeBtn.addEventListener('mouseleave', () => { closeBtn.style.background = 'rgba(255,255,255,0.06)'; closeBtn.style.color = 'rgba(255,255,255,0.5)'; });
+    closeBtn.addEventListener('click', removeDiffOverlay);
+
+    header.appendChild(titleWrap);
+    header.appendChild(closeBtn);
+
+    // Stats bar
+    const stats = document.createElement('div');
+    Object.assign(stats.style, {
+      display:'flex', gap:'16px', padding:'12px 24px',
+      borderBottom:'1px solid rgba(255,255,255,0.04)', flexShrink:'0',
+    });
+    const makeStat = (value, label, color) => {
+      const s = document.createElement('div');
+      s.innerHTML = `<span style="font-size:18px;font-weight:800;color:${color};margin-right:4px">${value}</span><span style="font-size:11px;color:rgba(255,255,255,0.4);font-weight:500">${label}</span>`;
+      return s;
+    };
+    stats.appendChild(makeStat(`+${added}`, 'added', '#86efac'));
+    stats.appendChild(makeStat(`-${removed}`, 'removed', '#fca5a5'));
+    stats.appendChild(makeStat(unchanged, 'unchanged', 'rgba(255,255,255,0.5)'));
+
+    // Tab bar
+    const tabBar = document.createElement('div');
+    Object.assign(tabBar.style, {
+      display:'flex', gap:'4px', padding:'10px 24px 0', flexShrink:'0',
     });
 
-    const arrow = document.createElement('span');
-    arrow.innerHTML = '&#8594;';
-    Object.assign(arrow.style, {
-      fontSize: '16px',
-      color: '#F5C842',
-      fontWeight: '700',
+    const views = {
+      unified: { label: 'Unified', content: null },
+      original: { label: 'Original', content: null },
+      enhanced: { label: 'Enhanced', content: null },
+    };
+
+    // Content area
+    const contentArea = document.createElement('div');
+    contentArea.className = 'pc-diff-scroll';
+    Object.assign(contentArea.style, {
+      flex:'1', padding:'20px 24px', overflowY:'auto', minHeight:'0',
+      fontSize:'14px', lineHeight:'1.8', whiteSpace:'pre-wrap', wordBreak:'break-word',
     });
 
-    const enhTitle = document.createElement('span');
-    enhTitle.textContent = 'Enhanced';
-    Object.assign(enhTitle.style, {
-      fontSize: '14px',
-      fontWeight: '600',
-      color: 'rgba(255, 255, 255, 0.9)',
+    const switchTab = (tabName) => {
+      tabBar.querySelectorAll('.pc-diff-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
+      if (tabName === 'unified') {
+        contentArea.innerHTML = unifiedHTML;
+      } else if (tabName === 'original') {
+        const esc = originalText.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        contentArea.innerHTML = `<span style="color:rgba(255,255,255,0.85)">${esc.replace(/\n/g,'<br>')}</span>`;
+      } else {
+        const esc = enhancedText.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        contentArea.innerHTML = `<span style="color:rgba(255,255,255,0.85)">${esc.replace(/\n/g,'<br>')}</span>`;
+      }
+    };
+
+    ['unified', 'original', 'enhanced'].forEach(name => {
+      const tab = document.createElement('button');
+      tab.className = 'pc-diff-tab' + (name === 'unified' ? ' active' : '');
+      tab.textContent = views[name].label;
+      tab.dataset.tab = name;
+      tab.addEventListener('click', () => switchTab(name));
+      tabBar.appendChild(tab);
     });
 
-    titleArea.appendChild(titleText);
-    titleArea.appendChild(arrow);
-    titleArea.appendChild(enhTitle);
+    switchTab('unified');
 
-    const headerBtns = document.createElement('div');
-    headerBtns.style.display = 'flex';
-    headerBtns.style.alignItems = 'center';
-    headerBtns.style.gap = '8px';
+    // Footer
+    const footer = document.createElement('div');
+    Object.assign(footer.style, {
+      display:'flex', alignItems:'center', justifyContent:'space-between',
+      padding:'14px 24px', borderTop:'1px solid rgba(255,255,255,0.06)', flexShrink:'0',
+    });
 
-    // Copy Enhanced button
+    // Legend
+    const legend = document.createElement('div');
+    Object.assign(legend.style, { display:'flex', gap:'16px' });
+    const makeLegend = (bg, label) => {
+      const d = document.createElement('div');
+      d.style.display = 'flex'; d.style.alignItems = 'center'; d.style.gap = '6px';
+      d.innerHTML = `<span style="width:10px;height:10px;border-radius:3px;background:${bg};display:inline-block"></span><span style="font-size:11px;color:rgba(255,255,255,0.35)">${label}</span>`;
+      return d;
+    };
+    legend.appendChild(makeLegend('rgba(239,68,68,0.3)', 'Removed'));
+    legend.appendChild(makeLegend('rgba(34,197,94,0.3)', 'Added'));
+
+    // Copy button
     const copyBtn = document.createElement('button');
-    copyBtn.textContent = 'Copy Enhanced';
     Object.assign(copyBtn.style, {
-      background: 'rgba(245, 200, 66, 0.15)',
-      color: '#F5C842',
-      border: '1px solid rgba(245, 200, 66, 0.3)',
-      borderRadius: '6px',
-      padding: '5px 12px',
-      fontSize: '12px',
-      fontWeight: '600',
-      cursor: 'pointer',
-      transition: 'background 0.15s ease',
+      background:'#D4872E', color:'#fff', border:'none', borderRadius:'8px',
+      padding:'8px 18px', fontSize:'12px', fontWeight:'700', cursor:'pointer',
+      transition:'all 0.15s', fontFamily:'inherit',
     });
-    copyBtn.addEventListener('mouseenter', () => {
-      copyBtn.style.background = 'rgba(245, 200, 66, 0.25)';
-    });
-    copyBtn.addEventListener('mouseleave', () => {
-      copyBtn.style.background = 'rgba(245, 200, 66, 0.15)';
-    });
+    copyBtn.textContent = 'Copy Enhanced';
+    copyBtn.addEventListener('mouseenter', () => { copyBtn.style.background = '#C07824'; });
+    copyBtn.addEventListener('mouseleave', () => { copyBtn.style.background = '#D4872E'; });
     copyBtn.addEventListener('click', () => {
       navigator.clipboard.writeText(enhancedText).then(() => {
         copyBtn.textContent = 'Copied!';
@@ -244,168 +283,20 @@
       });
     });
 
-    // Close button
-    const closeBtn = document.createElement('button');
-    closeBtn.innerHTML = '&#10005;';
-    Object.assign(closeBtn.style, {
-      background: 'rgba(255, 255, 255, 0.08)',
-      color: 'rgba(255, 255, 255, 0.7)',
-      border: 'none',
-      borderRadius: '6px',
-      width: '28px',
-      height: '28px',
-      fontSize: '14px',
-      cursor: 'pointer',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      transition: 'background 0.15s ease',
-    });
-    closeBtn.addEventListener('mouseenter', () => {
-      closeBtn.style.background = 'rgba(255, 255, 255, 0.15)';
-    });
-    closeBtn.addEventListener('mouseleave', () => {
-      closeBtn.style.background = 'rgba(255, 255, 255, 0.08)';
-    });
-    closeBtn.addEventListener('click', removeDiffOverlay);
-
-    headerBtns.appendChild(copyBtn);
-    headerBtns.appendChild(closeBtn);
-    header.appendChild(titleArea);
-    header.appendChild(headerBtns);
-
-    // Body — two-column diff
-    const body = document.createElement('div');
-    Object.assign(body.style, {
-      display: 'flex',
-      flex: '1',
-      overflow: 'hidden',
-      minHeight: '0',
-    });
-
-    // Left pane (original)
-    const leftPane = document.createElement('div');
-    Object.assign(leftPane.style, {
-      flex: '1',
-      padding: '16px 20px',
-      overflowY: 'auto',
-      borderRight: '1px solid rgba(255, 255, 255, 0.06)',
-    });
-
-    const leftLabel = document.createElement('div');
-    Object.assign(leftLabel.style, {
-      fontSize: '10px',
-      fontWeight: '700',
-      textTransform: 'uppercase',
-      letterSpacing: '0.5px',
-      color: 'rgba(248, 113, 113, 0.8)',
-      marginBottom: '10px',
-    });
-    leftLabel.textContent = 'Original';
-
-    const leftContent = document.createElement('div');
-    Object.assign(leftContent.style, {
-      fontSize: '13px',
-      lineHeight: '1.7',
-      color: 'rgba(255, 255, 255, 0.85)',
-      whiteSpace: 'pre-wrap',
-      wordBreak: 'break-word',
-    });
-    leftContent.innerHTML = origHTML;
-
-    leftPane.appendChild(leftLabel);
-    leftPane.appendChild(leftContent);
-
-    // Right pane (enhanced)
-    const rightPane = document.createElement('div');
-    Object.assign(rightPane.style, {
-      flex: '1',
-      padding: '16px 20px',
-      overflowY: 'auto',
-    });
-
-    const rightLabel = document.createElement('div');
-    Object.assign(rightLabel.style, {
-      fontSize: '10px',
-      fontWeight: '700',
-      textTransform: 'uppercase',
-      letterSpacing: '0.5px',
-      color: 'rgba(74, 222, 128, 0.8)',
-      marginBottom: '10px',
-    });
-    rightLabel.textContent = 'Enhanced';
-
-    const rightContent = document.createElement('div');
-    Object.assign(rightContent.style, {
-      fontSize: '13px',
-      lineHeight: '1.7',
-      color: 'rgba(255, 255, 255, 0.85)',
-      whiteSpace: 'pre-wrap',
-      wordBreak: 'break-word',
-    });
-    rightContent.innerHTML = enhHTML;
-
-    rightPane.appendChild(rightLabel);
-    rightPane.appendChild(rightContent);
-
-    body.appendChild(leftPane);
-    body.appendChild(rightPane);
-
-    // Legend bar at bottom
-    const legend = document.createElement('div');
-    Object.assign(legend.style, {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: '20px',
-      padding: '10px 20px',
-      borderTop: '1px solid rgba(255, 255, 255, 0.06)',
-      flexShrink: '0',
-    });
-
-    const makeLegendItem = (color, label) => {
-      const item = document.createElement('div');
-      item.style.display = 'flex';
-      item.style.alignItems = 'center';
-      item.style.gap = '6px';
-
-      const swatch = document.createElement('span');
-      Object.assign(swatch.style, {
-        display: 'inline-block',
-        width: '12px',
-        height: '12px',
-        borderRadius: '3px',
-        background: color,
-      });
-
-      const txt = document.createElement('span');
-      Object.assign(txt.style, {
-        fontSize: '11px',
-        color: 'rgba(255, 255, 255, 0.5)',
-      });
-      txt.textContent = label;
-
-      item.appendChild(swatch);
-      item.appendChild(txt);
-      return item;
-    };
-
-    legend.appendChild(makeLegendItem('rgba(239, 68, 68, 0.25)', 'Removed'));
-    legend.appendChild(makeLegendItem('rgba(34, 197, 94, 0.25)', 'Added'));
-    legend.appendChild(makeLegendItem('transparent', 'Unchanged'));
+    footer.appendChild(legend);
+    footer.appendChild(copyBtn);
 
     modal.appendChild(header);
-    modal.appendChild(body);
-    modal.appendChild(legend);
+    modal.appendChild(stats);
+    modal.appendChild(tabBar);
+    modal.appendChild(contentArea);
+    modal.appendChild(footer);
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
 
     // ESC to close
     const escHandler = (e) => {
-      if (e.key === 'Escape') {
-        removeDiffOverlay();
-        document.removeEventListener('keydown', escHandler, true);
-      }
+      if (e.key === 'Escape') { removeDiffOverlay(); document.removeEventListener('keydown', escHandler, true); }
     };
     document.addEventListener('keydown', escHandler, true);
   }

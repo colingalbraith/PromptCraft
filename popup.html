@@ -53,7 +53,7 @@
 
         <div class="style-picker anim-item">
           <div class="label-row">
-            <label>Style</label>
+            <label>Tone</label>
           </div>
           <div id="style-chips" class="style-chips">
             <!-- Populated by JS -->
@@ -230,7 +230,7 @@
         <!-- Presets -->
         <div class="settings-section">
           <div class="label-row">
-            <label class="section-label">Style Presets</label>
+            <label class="section-label">Tone Presets</label>
             <button id="add-preset-btn" class="text-btn" title="Add preset">+ New</button>
           </div>
 
@@ -369,22 +369,30 @@
             <span id="template-detail-icon" class="template-detail-icon"></span>
             <span id="template-detail-name" class="template-detail-name"></span>
           </div>
-          <p id="template-detail-desc" class="template-detail-desc"></p>
-          <div id="template-variables" class="template-variables">
-            <!-- Variable fields populated by JS -->
+          <div class="template-detail-body">
+            <p id="template-detail-desc" class="template-detail-desc"></p>
+            <div id="template-variables" class="template-variables">
+              <!-- Variable fields populated by JS -->
+            </div>
+            <div id="template-input-group" class="input-group template-input-group">
+              <label for="template-input-area">Content</label>
+              <textarea id="template-input-area" placeholder="Paste your text or code here..."></textarea>
+            </div>
+            <div id="template-preview" class="template-preview">
+              <label class="template-preview-label">Preview</label>
+              <div id="template-preview-text" class="template-preview-text"></div>
+            </div>
+            <div class="template-tone-picker">
+              <label>Tone</label>
+              <div id="template-tone-chips" class="style-chips">
+                <!-- Populated by JS -->
+              </div>
+            </div>
+            <button id="use-template-btn" class="primary-btn">
+              <span class="btn-text">Use Template</span>
+              <span class="btn-shimmer"></span>
+            </button>
           </div>
-          <div id="template-input-group" class="input-group template-input-group">
-            <label for="template-input-area">Content</label>
-            <textarea id="template-input-area" placeholder="Paste your text or code here..."></textarea>
-          </div>
-          <div id="template-preview" class="template-preview">
-            <label class="template-preview-label">Preview</label>
-            <div id="template-preview-text" class="template-preview-text"></div>
-          </div>
-          <button id="use-template-btn" class="primary-btn">
-            <span class="btn-text">Use Template</span>
-            <span class="btn-shimmer"></span>
-          </button>
         </div>
       </div>
 

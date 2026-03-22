@@ -305,11 +305,31 @@ const API_STORAGE_MAP = {
 const MAX_HISTORY = 100;
 
 // ── Prompt Templates (quick-start templates for common use cases) ────────────
+// Icons are inline SVG strings (feather-style, 18x18)
+const _i = (d) => `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+
+const TEMPLATE_ICONS = {
+  bug:       _i('<path d="M8 2l1.88 1.88"/><path d="M14.12 3.88L16 2"/><path d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6"/><path d="M12 20v-9"/><path d="M6.53 9C4.6 8.8 3 7.1 3 5"/><path d="M6 13H2"/><path d="M3 21c0-2.1 1.7-3.9 3.8-4"/><path d="M20.97 5c0 2.1-1.6 3.8-3.5 4"/><path d="M22 13h-4"/><path d="M17.2 17c2.1.1 3.8 1.9 3.8 4"/>'),
+  search:    _i('<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>'),
+  lightbulb: _i('<path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/>'),
+  clipboard: _i('<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>'),
+  edit:      _i('<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>'),
+  mail:      _i('<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>'),
+  zap:       _i('<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>'),
+  columns:   _i('<line x1="12" y1="3" x2="12" y2="21"/><rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="18" rx="1"/>'),
+  map:       _i('<polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/>'),
+  globe:     _i('<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>'),
+  feather:   _i('<path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/>'),
+  book:      _i('<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>'),
+  refresh:   _i('<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>'),
+  beaker:    _i('<path d="M9 3h6"/><path d="M10 3v5.4a4 4 0 0 1-1.17 2.83L4 16a2 2 0 0 0 1.5 3.33h13A2 2 0 0 0 20 16l-4.83-4.77A4 4 0 0 1 14 8.4V3"/>'),
+};
+
 const PROMPT_TEMPLATES = [
   {
     id: 'debug-code',
     name: 'Debug This Code',
-    icon: '\uD83D\uDC1B',
+    icon: 'bug',
     category: 'coding',
     description: 'Find and fix bugs in your code',
     template: 'Debug the following code. Identify the bug(s), explain why they occur, and provide the corrected version with comments.\n\n```\n{{input}}\n```',
@@ -318,7 +338,7 @@ const PROMPT_TEMPLATES = [
   {
     id: 'review-code',
     name: 'Review This Code',
-    icon: '\uD83D\uDD0D',
+    icon: 'search',
     category: 'coding',
     description: 'Get a thorough code review with suggestions',
     template: 'Review the following code for quality, performance, and best practices. Highlight issues, suggest improvements, and rate overall quality.\n\n```\n{{input}}\n```',
@@ -327,7 +347,7 @@ const PROMPT_TEMPLATES = [
   {
     id: 'explain-concept',
     name: 'Explain This Concept',
-    icon: '\uD83D\uDCA1',
+    icon: 'lightbulb',
     category: 'research',
     description: 'Get a clear explanation of any topic',
     template: 'Explain {{topic}} in a clear, structured way. Start with a simple overview, then go deeper. Use examples and analogies where helpful.',
@@ -336,7 +356,7 @@ const PROMPT_TEMPLATES = [
   {
     id: 'summarize-text',
     name: 'Summarize This Text',
-    icon: '\uD83D\uDCCB',
+    icon: 'clipboard',
     category: 'writing',
     description: 'Condense articles or long text into key points',
     template: 'Summarize the following text. Provide a brief overview (2-3 sentences), then list the key points as bullet points.\n\n{{input}}',
@@ -345,7 +365,7 @@ const PROMPT_TEMPLATES = [
   {
     id: 'write-blog-post',
     name: 'Write a Blog Post',
-    icon: '\u270D\uFE0F',
+    icon: 'edit',
     category: 'writing',
     description: 'Draft a blog post on any topic',
     template: 'Write an engaging blog post about {{topic}}. Include an attention-grabbing introduction, well-structured body with subheadings, and a compelling conclusion. Aim for an informative yet conversational tone.',
@@ -354,7 +374,7 @@ const PROMPT_TEMPLATES = [
   {
     id: 'draft-email',
     name: 'Draft an Email',
-    icon: '\uD83D\uDCE7',
+    icon: 'mail',
     category: 'writing',
     description: 'Compose a professional email',
     template: 'Draft a {{tone}} email about {{subject}}. Keep it clear, professional, and actionable. Include an appropriate greeting and sign-off.',
@@ -363,7 +383,7 @@ const PROMPT_TEMPLATES = [
   {
     id: 'brainstorm-ideas',
     name: 'Brainstorm Ideas',
-    icon: '\uD83E\uDDE0',
+    icon: 'zap',
     category: 'creative',
     description: 'Generate creative ideas for any project',
     template: 'Brainstorm 10 creative and diverse ideas for {{topic}}. For each idea, include a short title and a 1-2 sentence description. Range from practical to wildly creative.',
@@ -372,7 +392,7 @@ const PROMPT_TEMPLATES = [
   {
     id: 'compare-x-vs-y',
     name: 'Compare X vs Y',
-    icon: '\u2696\uFE0F',
+    icon: 'columns',
     category: 'research',
     description: 'Get a detailed comparison of two things',
     template: 'Compare {{optionA}} vs {{optionB}}. Create a structured comparison covering key differences, pros/cons of each, and a recommendation for different use cases.',
@@ -381,7 +401,7 @@ const PROMPT_TEMPLATES = [
   {
     id: 'create-plan',
     name: 'Create a Plan',
-    icon: '\uD83D\uDCCC',
+    icon: 'map',
     category: 'creative',
     description: 'Build a step-by-step action plan',
     template: 'Create a detailed, actionable plan for {{goal}}. Break it into phases with specific steps, estimated timelines, and potential challenges to watch for.',
@@ -390,7 +410,7 @@ const PROMPT_TEMPLATES = [
   {
     id: 'translate-text',
     name: 'Translate Text',
-    icon: '\uD83C\uDF10',
+    icon: 'globe',
     category: 'writing',
     description: 'Translate text to another language',
     template: 'Translate the following text to {{language}}. Preserve the original tone and meaning. Note any phrases that don\'t translate directly.\n\n{{input}}',
@@ -399,7 +419,7 @@ const PROMPT_TEMPLATES = [
   {
     id: 'improve-writing',
     name: 'Improve This Writing',
-    icon: '\u2728',
+    icon: 'feather',
     category: 'writing',
     description: 'Polish and elevate your writing',
     template: 'Improve the following writing. Fix grammar, enhance clarity, strengthen word choice, and improve flow while preserving the original voice and intent.\n\n{{input}}',
@@ -408,7 +428,7 @@ const PROMPT_TEMPLATES = [
   {
     id: 'research-question',
     name: 'Research Question',
-    icon: '\uD83D\uDD2C',
+    icon: 'book',
     category: 'research',
     description: 'Get an in-depth answer to a research question',
     template: 'Research and provide a comprehensive answer to: {{question}}. Include key facts, different perspectives, and cite the reasoning behind your conclusions.',
@@ -417,7 +437,7 @@ const PROMPT_TEMPLATES = [
   {
     id: 'refactor-code',
     name: 'Refactor This Code',
-    icon: '\u267B\uFE0F',
+    icon: 'refresh',
     category: 'coding',
     description: 'Clean up and optimize existing code',
     template: 'Refactor the following code for better readability, performance, and maintainability. Explain the changes you made and why.\n\n```\n{{input}}\n```',
@@ -426,7 +446,7 @@ const PROMPT_TEMPLATES = [
   {
     id: 'write-tests',
     name: 'Write Tests',
-    icon: '\uD83E\uDDEA',
+    icon: 'beaker',
     category: 'coding',
     description: 'Generate unit tests for your code',
     template: 'Write comprehensive unit tests for the following code. Cover edge cases, error scenarios, and typical usage. Use {{framework}} testing framework.\n\n```\n{{input}}\n```',

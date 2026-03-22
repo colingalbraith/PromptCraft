@@ -156,6 +156,7 @@ function initDomRefs() {
     templatePreview: $('template-preview'),
     templatePreviewText: $('template-preview-text'),
     useTemplateBtn: $('use-template-btn'),
+    templateToneChips: $('template-tone-chips'),
     templatesFooterBtn: $('templates-footer-btn'),
     // Usage
     usagePage: $('usage-page'),
@@ -1469,7 +1470,7 @@ function renderTemplateGrid() {
     card.className = 'template-card';
     card.style.animationDelay = `${idx * 0.04}s`;
     card.innerHTML = `
-      <span class="template-card-icon">${tpl.icon}</span>
+      <span class="template-card-icon">${TEMPLATE_ICONS[tpl.icon] || tpl.icon}</span>
       <span class="template-card-name">${escapeHtml(tpl.name)}</span>
       <span class="template-card-desc">${escapeHtml(tpl.description)}</span>
     `;
@@ -1480,7 +1481,7 @@ function renderTemplateGrid() {
 
 function openTemplateDetail(tpl) {
   activeTemplate = tpl;
-  els.templateDetailIcon.textContent = tpl.icon;
+  els.templateDetailIcon.innerHTML = TEMPLATE_ICONS[tpl.icon] || tpl.icon;
   els.templateDetailName.textContent = tpl.name;
   els.templateDetailDesc.textContent = tpl.description;
 
@@ -1514,6 +1515,22 @@ function openTemplateDetail(tpl) {
   els.templateInputArea.addEventListener('input', updateTemplatePreview);
 
   updateTemplatePreview();
+
+  // Render tone chips in template detail
+  const defaultTones = { coding: 'technical', writing: 'detailed', research: 'cot', creative: 'creative' };
+  const templateTone = defaultTones[tpl.category] || 'short';
+  els.templateToneChips.innerHTML = '';
+  Object.entries(STYLE_LABELS).forEach(([key, label]) => {
+    const chip = document.createElement('button');
+    chip.className = 'style-chip' + (key === templateTone ? ' active' : '');
+    chip.textContent = label;
+    chip.dataset.modifier = key;
+    chip.addEventListener('click', () => {
+      els.templateToneChips.querySelectorAll('.style-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+    });
+    els.templateToneChips.appendChild(chip);
+  });
 
   // Show detail, hide grid
   els.templateDetail.classList.remove('hidden');
@@ -1592,6 +1609,13 @@ function handleUseTemplate() {
       showToast('Please fill in all fields before using the template.', 'error');
       return;
     }
+  }
+
+  // Set the selected tone from the template detail view
+  const activeToneChip = els.templateToneChips.querySelector('.style-chip.active');
+  if (activeToneChip) {
+    selectedModifier = activeToneChip.dataset.modifier;
+    renderStyleChips();
   }
 
   // Insert into main page textarea
