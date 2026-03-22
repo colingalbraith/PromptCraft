@@ -5,7 +5,7 @@
   "main": "index.html",
   "scripts": {
     "dev": "npx live-server --port=3000 --open=/",
-    "build": "npm run minify:css && npm run minify:js",
+    "build": "echo 'Static site, no build needed'",
     "minify:css": "npx cleancss-cli css/styles.css -o css/styles.min.css",
     "minify:js": "npx uglify-js js/main.js -c -m -o js/main.min.js",
     "lint:css": "npx stylelint css/*.css",
