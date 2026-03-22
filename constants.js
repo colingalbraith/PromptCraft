@@ -470,12 +470,12 @@ const TIERS = {
 
 const TIER_LIMITS = {
   free: {
-    dailyEnhancements: 15,
-    multiStep: false,
-    deepAnalysis: false,
-    customEndpoints: false,
-    maxHistoryItems: 50,
-    styles: ['short', 'detailed', 'creative'],  // Limited styles
+    dailyEnhancements: Infinity,
+    multiStep: true,
+    deepAnalysis: true,
+    customEndpoints: true,
+    maxHistoryItems: 500,
+    styles: null, // All styles — everything is free
   },
   pro: {
     dailyEnhancements: Infinity,
@@ -483,7 +483,7 @@ const TIER_LIMITS = {
     deepAnalysis: true,
     customEndpoints: true,
     maxHistoryItems: 500,
-    styles: null, // All styles
+    styles: null,
   }
 };
 
