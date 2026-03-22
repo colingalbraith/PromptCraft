@@ -1,5 +1,6 @@
 // PromptCraft v2.0 — Background Service Worker (Unified API Gateway)
 importScripts('constants.js');
+importScripts('input-parser.js');
 
 // ── Enhancement Session Memory (per-tab, in-memory) ────────────────────────
 // Tracks the last enhancement per tab so follow-up enhancements have continuity
@@ -275,16 +276,74 @@ async function callProvider(prompt, modifier, settings, context, tabId) {
     template = custom ? custom.template : TEMPLATES.short;
   }
 
+  // Analyze the user's input before enhancement
+  const analysis = InputParser.analyze(prompt);
+
+  // Deep analysis (LLM-powered) if enabled
+  let deepHints = '';
+  if (settings[STORAGE_KEYS.DEEP_ANALYSIS]) {
+    const analysisConfig = { temperature: 0.2, maxTokens: 2000 };
+    const callerFn = async (text, systemPrompt) => {
+      // Use the same provider but with the analysis system prompt
+      if (settings[STORAGE_KEYS.PROVIDER] === PROVIDERS.OLLAMA) {
+        const endpoint = settings[STORAGE_KEYS.OLLAMA_ENDPOINT] || DEFAULT_SETTINGS[STORAGE_KEYS.OLLAMA_ENDPOINT];
+        const model = settings[STORAGE_KEYS.OLLAMA_MODEL] || DEFAULT_SETTINGS[STORAGE_KEYS.OLLAMA_MODEL];
+        const resp = await fetchWithTimeout(`${endpoint}/api/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model, system: systemPrompt, prompt: text, stream: false, options: { temperature: 0.2, num_predict: 2000 } })
+        });
+        const data = await resp.json();
+        return data.response || '';
+      }
+      const apiProvider = settings[STORAGE_KEYS.API_PROVIDER] || API_PROVIDERS.GEMINI;
+      switch (apiProvider) {
+        case API_PROVIDERS.OPENAI: {
+          const resp = await fetchWithTimeout('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${settings[STORAGE_KEYS.OPENAI_API_KEY]}` },
+            body: JSON.stringify({ model: settings[STORAGE_KEYS.OPENAI_MODEL] || 'gpt-4o-mini', messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: text }], temperature: 0.2, max_tokens: 2000 })
+          });
+          const data = await resp.json();
+          return data.choices?.[0]?.message?.content || '';
+        }
+        case API_PROVIDERS.CLAUDE: {
+          const resp = await fetchWithTimeout('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-api-key': settings[STORAGE_KEYS.CLAUDE_API_KEY], 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+            body: JSON.stringify({ model: settings[STORAGE_KEYS.CLAUDE_MODEL] || 'claude-haiku-4-5-20251001', system: systemPrompt, messages: [{ role: 'user', content: text }], max_tokens: 2000, temperature: 0.2 })
+          });
+          const data = await resp.json();
+          return data.content?.[0]?.text || '';
+        }
+        default: {
+          const model = settings[STORAGE_KEYS.GEMINI_MODEL] || 'gemini-2.0-flash';
+          const resp = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${settings[STORAGE_KEYS.GEMINI_API_KEY]}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ systemInstruction: { parts: [{ text: systemPrompt }] }, contents: [{ parts: [{ text }] }], generationConfig: { temperature: 0.2, maxOutputTokens: 2000 } })
+          });
+          const data = await resp.json();
+          return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        }
+      }
+    };
+    deepHints = await InputParser.analyzeDeep(prompt, callerFn);
+  }
+
   // Build context block from conversation + session memory
   const contextBlock = buildContextBlock(context, tabId);
+
+  // Combine context block with input analysis hints
+  const fullContext = contextBlock + analysis.hints + deepHints;
 
   // Build full prompt from template
   let fullPrompt;
   if (template.includes('{{context}}')) {
-    fullPrompt = template.replace('{{context}}', contextBlock).replace('{{input}}', prompt);
+    fullPrompt = template.replace('{{context}}', fullContext).replace('{{input}}', prompt);
   } else {
     // Custom/old templates without {{context}} — prepend context if available
-    fullPrompt = contextBlock + template.replace('{{input}}', prompt);
+    fullPrompt = fullContext + template.replace('{{input}}', prompt);
   }
 
   // Get per-style configuration (temperature + maxTokens)
@@ -458,6 +517,44 @@ async function getConversationFromTab() {
   }
 }
 
+// ── Preamble Stripping ──────────────────────────────────────────────────────
+// Models sometimes add commentary before the actual enhanced prompt.
+// This strips common preamble patterns.
+
+function stripPreamble(text) {
+  if (!text) return text;
+
+  // Patterns that indicate preamble before the real prompt
+  const preamblePatterns = [
+    /^(?:Here(?:'s| is) (?:your |the |an? )?(?:improved|enhanced|refined|rewritten|updated|optimized) (?:prompt|version)[:\s]*\n*)/i,
+    /^(?:Sure[!,.]?\s*(?:Here(?:'s| is)[^:\n]*[:\s]*\n*)?)/i,
+    /^(?:Okay[!,.]?\s*(?:Let'?s[^.\n]*[.\s]*\n*)?)/i,
+    /^(?:Absolutely[!,.]?\s*(?:Here[^:\n]*[:\s]*\n*)?)/i,
+    /^(?:Of course[!,.]?\s*(?:Here[^:\n]*[:\s]*\n*)?)/i,
+    /^(?:I'?(?:ve|ll) (?:enhanced|improved|refined|rewritten|crafted|created)[^:\n]*[:\s]*\n*)/i,
+    /^(?:(?:Enhanced|Improved|Refined|Rewritten|Updated|Optimized) (?:prompt|version)[:\s]*\n*)/i,
+    /^(?:Below is[^:\n]*[:\s]*\n*)/i,
+    /^(?:The enhanced prompt[:\s]*\n*)/i,
+  ];
+
+  let cleaned = text.trim();
+  for (const pattern of preamblePatterns) {
+    cleaned = cleaned.replace(pattern, '').trim();
+  }
+
+  // Strip wrapping quotes if the entire response is quoted
+  if (/^[""][\s\S]+[""]$/.test(cleaned)) {
+    cleaned = cleaned.slice(1, -1).trim();
+  }
+
+  // Strip wrapping markdown code block
+  if (/^```[\s\S]*```$/s.test(cleaned)) {
+    cleaned = cleaned.replace(/^```\w*\n?/, '').replace(/\n?```$/, '').trim();
+  }
+
+  return cleaned;
+}
+
 // ── Context Menu ────────────────────────────────────────────────────────────
 
 const AI_SITES = [
@@ -518,13 +615,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           }
         }
 
-        const text = await callProvider(
+        let text = await callProvider(
           message.prompt,
           message.modifier || 'short',
           settings,
           context,
           tabId
         );
+
+        // Strip any preamble the model leaked (e.g., "Here's your improved prompt:", "Sure!", "Okay, let's...")
+        text = stripPreamble(text);
 
         // Update session memory for this tab
         if (tabId) {

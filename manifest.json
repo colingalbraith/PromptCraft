@@ -61,7 +61,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["popup.html", "popup.css", "popup.js", "constants.js", "icon.png", "icons/*"],
+      "resources": ["popup.html", "popup.css", "popup.js", "constants.js", "input-parser.js", "icon.png", "icons/*"],
       "matches": ["<all_urls>"]
     }
   ],

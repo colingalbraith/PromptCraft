@@ -103,6 +103,7 @@ function initDomRefs() {
     refreshOllamaModels: $('refresh-ollama-models'),
     ollamaStatus: $('ollama-status'),
     saveSettingsBtn: $('save-settings'),
+    deepAnalysisToggle: $('deep-analysis-toggle'),
     // Presets
     addPresetBtn: $('add-preset-btn'),
     presetForm: $('preset-form'),
@@ -217,6 +218,11 @@ async function loadSettings() {
   if (presetsResp.success) customPresets = presetsResp.presets;
   const overridesResp = await sendMsg({ action: 'getPresetOverrides' });
   if (overridesResp.success) presetOverrides = overridesResp.overrides;
+
+  // Deep analysis toggle
+  if (els.deepAnalysisToggle) {
+    els.deepAnalysisToggle.checked = !!s[STORAGE_KEYS.DEEP_ANALYSIS];
+  }
 
   // Modifier
   if (s.lastModifier) selectedModifier = s.lastModifier;
@@ -640,6 +646,7 @@ async function handleSaveSettings() {
     [STORAGE_KEYS.CLAUDE_MODEL]: apiModels.claude,
     [STORAGE_KEYS.OLLAMA_ENDPOINT]: els.ollamaEndpoint.value.trim() || DEFAULT_SETTINGS[STORAGE_KEYS.OLLAMA_ENDPOINT],
     [STORAGE_KEYS.OLLAMA_MODEL]: selectedOllamaModel || DEFAULT_SETTINGS[STORAGE_KEYS.OLLAMA_MODEL],
+    [STORAGE_KEYS.DEEP_ANALYSIS]: els.deepAnalysisToggle ? els.deepAnalysisToggle.checked : false,
   };
 
   const resp = await sendMsg({ action: 'saveSettings', settings });

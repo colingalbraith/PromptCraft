@@ -207,6 +207,17 @@
           <p class="hint">Edit any preset's template. Use <code>{{input}}</code> for the prompt and <code>{{context}}</code> for conversation context. Custom presets can be deleted.</p>
         </div>
 
+        <!-- Deep Analysis Toggle -->
+        <div class="settings-section">
+          <label class="section-label">Deep Analysis</label>
+          <label class="toggle-row">
+            <span class="toggle-label">LLM-powered input analysis</span>
+            <input type="checkbox" id="deep-analysis-toggle">
+            <span class="toggle-switch"></span>
+          </label>
+          <p class="hint">Uses an extra API call to deeply understand your input before enhancing. Better results, slightly slower. Free with Ollama.</p>
+        </div>
+
         <button id="save-settings" class="primary-btn">Save Settings</button>
 
         <div class="about-section">

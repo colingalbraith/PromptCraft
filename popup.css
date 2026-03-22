@@ -1852,6 +1852,57 @@ textarea {
   margin-bottom: 4px;
 }
 
+/* ── Toggle Switch ── */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  padding: 8px 0;
+  user-select: none;
+}
+
+.toggle-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.toggle-row input[type="checkbox"] {
+  display: none;
+}
+
+.toggle-switch {
+  width: 36px;
+  height: 20px;
+  background: var(--border);
+  border-radius: 10px;
+  position: relative;
+  transition: background 0.2s ease;
+  flex-shrink: 0;
+}
+
+.toggle-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: white;
+  border-radius: 50%;
+  transition: transform 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+
+.toggle-row input:checked + .toggle-switch {
+  background: var(--accent);
+}
+
+.toggle-row input:checked + .toggle-switch::after {
+  transform: translateX(16px);
+}
+
 /* ── Iframe Mode (injected floating panel) ── */
 html.in-iframe,
 html.in-iframe body {

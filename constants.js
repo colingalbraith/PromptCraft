@@ -31,12 +31,28 @@ const SYSTEM_PROMPT = `You are PromptCraft, a world-class prompt engineer. Your 
 6. **Persona & Tone** — Match the sophistication level to the user's intent.
 
 ## Rules
-- Return ONLY the enhanced prompt. No explanations, no preamble, no "Here's your improved prompt:".
+- CRITICAL: Return ONLY the enhanced prompt text. Nothing else. No preamble, no commentary, no "Here's your improved prompt:", no "Okay, let's...", no "Sure!", no thinking out loud. Your entire response IS the enhanced prompt — the user will paste it directly into an AI chat.
 - Preserve the user's core intent — enhance, don't redirect or change the topic.
 - Don't add unnecessary complexity to simple requests.
 - If conversation context is provided, use it to make the enhanced prompt more relevant, specific, and aware of what has already been discussed.
 - Never wrap the output in quotes or markdown code blocks.
-- If a previous enhancement is referenced, build on that trajectory rather than starting fresh.`;
+- If a previous enhancement is referenced, build on that trajectory rather than starting fresh.
+- If an Input Analysis section is provided, use it to guide your enhancement strategy. It tells you what kind of content the user submitted (code, errors, pasted text, etc.), their intent, and specific quality issues to address. Follow its guidance on what to preserve vs. rewrite.`;
+
+// ── Deep Analysis Prompt (LLM-powered input analysis) ───────────────────────
+
+const DEEP_ANALYSIS_PROMPT = `You are an input analyzer for a prompt enhancement tool. Your job is to deeply understand what the user is trying to accomplish so the enhancement engine can do a better job.
+
+Analyze the user's input and return a concise analysis in this exact format (no other text):
+
+INTENT: [1-2 sentence description of what the user actually wants — not literally what they typed, but the underlying goal]
+DOMAIN: [the subject domain — e.g., "web development", "creative writing", "data analysis", "general knowledge"]
+TONE_MATCH: [what tone the enhanced prompt should use — e.g., "technical and precise", "conversational", "academic", "professional"]
+MISSING: [what critical information is missing that would make this prompt much better — be specific, e.g., "no target audience specified", "no programming language mentioned", "no desired output format"]
+PRESERVE: [what parts of the input must NOT be changed — e.g., "the error message on line 3", "the code block", "the quoted text", "the URLs"]
+STRATEGY: [1-2 sentence recommendation for how to enhance this prompt — e.g., "add specificity about the tech stack and desired output format", "separate the debugging request from the feature request", "the user pasted an article and wants a summary — frame as a summarization task with constraints"]
+
+Be brutally concise. No pleasantries. No markdown formatting. Just the labeled lines.`;
 
 // ── Per-Style Configuration ─────────────────────────────────────────────────
 
@@ -147,7 +163,8 @@ const STORAGE_KEYS = {
   HISTORY: 'promptHistory',
   CUSTOM_PRESETS: 'customPresets',
   PRESET_OVERRIDES: 'presetOverrides',
-  ONBOARDING_COMPLETE: 'onboardingComplete'
+  ONBOARDING_COMPLETE: 'onboardingComplete',
+  DEEP_ANALYSIS: 'deepAnalysis'
 };
 
 // Keys stored in chrome.storage.local (not sync)
@@ -164,7 +181,8 @@ const DEFAULT_SETTINGS = {
   [STORAGE_KEYS.CLAUDE_MODEL]: 'claude-sonnet-4-20250514',
   [STORAGE_KEYS.OLLAMA_ENDPOINT]: 'http://localhost:11434',
   [STORAGE_KEYS.OLLAMA_MODEL]: 'llama3',
-  [STORAGE_KEYS.LAST_MODIFIER]: 'short'
+  [STORAGE_KEYS.LAST_MODIFIER]: 'short',
+  [STORAGE_KEYS.DEEP_ANALYSIS]: true
 };
 
 const API_MODELS = {
