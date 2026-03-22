@@ -27,7 +27,6 @@
       <!-- ─── Main Page ─── -->
       <div id="main-page" class="page active">
         <div class="header anim-item">
-          <img src="icon.png" class="logo" alt="PromptCraft">
           <h1>PromptCraft</h1>
           <button id="templates-btn" class="icon-btn" title="Templates">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
@@ -401,28 +400,61 @@
         <div class="onboarding-content">
           <img src="icon.png" class="onboarding-logo" alt="PromptCraft">
           <h2 class="onboarding-title">Welcome to PromptCraft</h2>
-          <p class="onboarding-subtitle">Enhance your AI prompts with one click. Choose a provider to get started.</p>
+          <p class="onboarding-subtitle">You'll need an AI provider API key to enhance prompts. Pick one below.</p>
 
-          <div class="onboarding-providers">
-            <button class="onboarding-provider-btn" data-provider="openai">OpenAI</button>
-            <button class="onboarding-provider-btn" data-provider="gemini">Gemini</button>
-            <button class="onboarding-provider-btn" data-provider="claude">Claude</button>
-            <button class="onboarding-provider-btn ollama" data-provider="ollama">Ollama (Local)</button>
+          <!-- Step 1: Pick provider -->
+          <div id="onboarding-step-1">
+            <div class="onboarding-providers">
+              <button class="onboarding-provider-btn recommended" data-provider="gemini">
+                <span class="onboarding-provider-name">Gemini</span>
+                <span class="onboarding-provider-tag">Recommended &mdash; Free</span>
+              </button>
+              <button class="onboarding-provider-btn" data-provider="openai">
+                <span class="onboarding-provider-name">OpenAI</span>
+                <span class="onboarding-provider-tag">Paid API</span>
+              </button>
+              <button class="onboarding-provider-btn" data-provider="claude">
+                <span class="onboarding-provider-name">Claude</span>
+                <span class="onboarding-provider-tag">Paid API</span>
+              </button>
+              <button class="onboarding-provider-btn" data-provider="ollama">
+                <span class="onboarding-provider-name">Ollama</span>
+                <span class="onboarding-provider-tag">Free &mdash; Runs locally on your machine</span>
+              </button>
+            </div>
           </div>
 
+          <!-- Step 2: Enter key -->
           <div id="onboarding-key-section" class="onboarding-key-section hidden">
+            <div class="onboarding-instructions" id="onboarding-instructions"></div>
             <div class="input-group compact">
               <label for="onboarding-api-key">API Key</label>
-              <input type="password" id="onboarding-api-key" placeholder="Paste your API key here">
+              <div class="input-row">
+                <input type="password" id="onboarding-api-key" placeholder="Paste your API key here">
+                <button id="onboarding-test-btn" class="toggle-btn" title="Test connection">Test</button>
+              </div>
             </div>
-            <p id="onboarding-hint" class="hint"></p>
+            <div id="onboarding-test-status" class="connection-status"></div>
+          </div>
+
+          <!-- Ollama instructions -->
+          <div id="onboarding-ollama-section" class="onboarding-key-section hidden">
+            <div class="onboarding-instructions">
+              <p><strong>Setup Ollama:</strong></p>
+              <ol>
+                <li>Install Ollama from <a href="https://ollama.com" target="_blank">ollama.com</a></li>
+                <li>Open a terminal and run: <code>ollama pull llama3</code></li>
+                <li>Keep Ollama running in the background</li>
+              </ol>
+              <p class="hint">Ollama is completely free and runs on your computer. No API key needed.</p>
+            </div>
           </div>
 
           <button id="onboarding-start" class="primary-btn" disabled>
             <span class="btn-text">Get Started</span>
             <span class="btn-shimmer"></span>
           </button>
-          <button id="onboarding-skip" class="text-btn">Skip for now</button>
+          <button id="onboarding-skip" class="text-btn">I'll set this up later in Settings</button>
         </div>
       </div>
 

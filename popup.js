@@ -139,6 +139,8 @@ function initDomRefs() {
     onboardingHint: $('onboarding-hint'),
     onboardingStartBtn: $('onboarding-start'),
     onboardingSkipBtn: $('onboarding-skip'),
+    onboardingTestBtn: $('onboarding-test-btn'),
+    onboardingTestStatus: $('onboarding-test-status'),
     // Templates
     templatesPage: $('templates-page'),
     templatesBtn: $('templates-btn'),
@@ -353,23 +355,65 @@ async function handleOnboardingStart() {
   showToast('Welcome to PromptCraft!', 'success');
 }
 
+const ONBOARDING_INSTRUCTIONS = {
+  gemini: {
+    steps: [
+      'Go to <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio</a>',
+      'Sign in with your Google account',
+      'Click "Create API Key"',
+      'Copy the key and paste it below'
+    ],
+    note: 'Gemini offers a generous free tier — no credit card needed.'
+  },
+  openai: {
+    steps: [
+      'Go to <a href="https://platform.openai.com/api-keys" target="_blank">OpenAI Platform</a>',
+      'Sign in or create an account',
+      'Click "Create new secret key"',
+      'Copy the key and paste it below'
+    ],
+    note: 'OpenAI requires a paid account with credits.'
+  },
+  claude: {
+    steps: [
+      'Go to <a href="https://console.anthropic.com/settings/keys" target="_blank">Anthropic Console</a>',
+      'Sign in or create an account',
+      'Click "Create Key"',
+      'Copy the key and paste it below'
+    ],
+    note: 'Claude requires a paid API account.'
+  }
+};
+
 function selectOnboardingProvider(provider) {
   onboardingSelectedProvider = provider;
 
-  // Update button active states
   document.querySelectorAll('.onboarding-provider-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.provider === provider);
   });
 
+  const ollamaSection = document.getElementById('onboarding-ollama-section');
+  const testStatus = document.getElementById('onboarding-test-status');
+  if (testStatus) testStatus.textContent = '';
+
   if (provider === 'ollama') {
     els.onboardingKeySection.classList.add('hidden');
+    if (ollamaSection) ollamaSection.classList.remove('hidden');
     els.onboardingStartBtn.disabled = false;
   } else {
     els.onboardingKeySection.classList.remove('hidden');
-    const hint = API_HINTS[provider];
-    if (hint) {
-      els.onboardingHint.innerHTML = `Get a key at <a href="${hint.url}" target="_blank">${hint.label}</a>`;
+    if (ollamaSection) ollamaSection.classList.add('hidden');
+
+    const info = ONBOARDING_INSTRUCTIONS[provider];
+    const instructionsEl = document.getElementById('onboarding-instructions');
+    if (info && instructionsEl) {
+      instructionsEl.innerHTML = `
+        <p><strong>Get your ${API_PROVIDER_LABELS[provider]} key:</strong></p>
+        <ol>${info.steps.map(s => `<li>${s}</li>`).join('')}</ol>
+        <p class="hint">${info.note}</p>
+      `;
     }
+
     els.onboardingStartBtn.disabled = !els.onboardingApiKey.value.trim();
   }
 }
@@ -1779,7 +1823,26 @@ document.addEventListener('DOMContentLoaded', () => {
   els.onboardingSkipBtn.addEventListener('click', () => {
     completeOnboarding();
     navigateTo(els.mainPage);
+    showToast('You can set up a provider anytime in Settings.', 'info');
   });
+
+  // Onboarding test button
+  if (els.onboardingTestBtn) {
+    els.onboardingTestBtn.addEventListener('click', async () => {
+      if (!onboardingSelectedProvider || onboardingSelectedProvider === 'ollama') return;
+      const key = els.onboardingApiKey.value.trim();
+      if (!key) { showToast('Enter an API key first.', 'error'); return; }
+      const statusEl = els.onboardingTestStatus;
+      if (statusEl) { statusEl.textContent = 'Testing...'; statusEl.className = 'connection-status testing'; }
+      const resp = await sendMsg({ action: 'testConnection', provider: PROVIDERS.API, apiProvider: onboardingSelectedProvider, apiKey: key });
+      if (resp.success) {
+        if (statusEl) { statusEl.textContent = 'Connected!'; statusEl.className = 'connection-status success'; }
+        els.onboardingStartBtn.disabled = false;
+      } else {
+        if (statusEl) { statusEl.textContent = resp.error || 'Connection failed.'; statusEl.className = 'connection-status error'; }
+      }
+    });
+  }
 
   // Init char count
   updateCharCount();
