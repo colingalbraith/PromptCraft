@@ -9,13 +9,15 @@ const PROVIDERS = {
 const API_PROVIDERS = {
   OPENAI: 'openai',
   GEMINI: 'gemini',
-  CLAUDE: 'claude'
+  CLAUDE: 'claude',
+  CUSTOM: 'custom'
 };
 
 const API_PROVIDER_LABELS = {
   openai: 'OpenAI',
   gemini: 'Gemini',
-  claude: 'Claude'
+  claude: 'Claude',
+  custom: 'Custom'
 };
 
 // ── System Prompt (used for all enhancement API calls) ──────────────────────
@@ -38,6 +40,66 @@ const SYSTEM_PROMPT = `You are PromptCraft, a world-class prompt engineer. Your 
 - Never wrap the output in quotes or markdown code blocks.
 - If a previous enhancement is referenced, build on that trajectory rather than starting fresh.
 - If an Input Analysis section is provided, use it to guide your enhancement strategy. It tells you what kind of content the user submitted (code, errors, pasted text, etc.), their intent, and specific quality issues to address. Follow its guidance on what to preserve vs. rewrite.`;
+
+// ── Target Platform Optimization ────────────────────────────────────────────
+// When we know which AI the user is chatting with, tailor the enhanced prompt
+// to that AI's strengths and formatting preferences.
+
+const PLATFORM_HINTS = {
+  chatgpt: `Target AI: ChatGPT (OpenAI). Optimization tips:
+- ChatGPT responds well to system-like framing ("Act as...", "You are...")
+- Supports markdown formatting in responses — request structured output with headers, lists, code blocks
+- Handles multi-step instructions well when numbered
+- Benefits from explicit output format specification
+- Responds well to "Think step by step" for reasoning tasks`,
+
+  claude: `Target AI: Claude (Anthropic). Optimization tips:
+- Claude excels with XML-tagged sections for complex prompts (<context>, <instructions>, <output_format>)
+- Responds very well to detailed, thorough instructions — more detail = better output
+- Prefers explicit constraints over implicit ones
+- Handles nuance and edge cases well when they're spelled out
+- Supports artifact creation — can request code, documents, etc. as artifacts`,
+
+  gemini: `Target AI: Gemini (Google). Optimization tips:
+- Gemini handles multimodal context well — reference visual elements if relevant
+- Responds well to clear, direct instructions
+- Benefits from specifying desired response length
+- Handles structured output well with explicit format requests
+- Good at synthesis and analysis tasks when given clear criteria`,
+
+  deepseek: `Target AI: DeepSeek. Optimization tips:
+- DeepSeek excels at coding and technical tasks
+- Responds well to detailed technical specifications
+- Benefits from explicit programming language and framework mentions
+- Handles chain-of-thought reasoning well
+- Good at math and logical reasoning with step-by-step prompting`,
+
+  perplexity: `Target AI: Perplexity. Optimization tips:
+- Perplexity is search-augmented — frame questions to leverage real-time information
+- Ask for sources and citations explicitly
+- Benefits from specific, focused questions rather than broad ones
+- Good at comparative analysis ("Compare X vs Y with current data")
+- Request recency ("as of 2024/2025") for time-sensitive topics`,
+
+  grok: `Target AI: Grok (xAI). Optimization tips:
+- Grok has access to real-time X/Twitter data — leverage this for current events
+- Handles casual and direct communication style well
+- Good at opinionated analysis when asked
+- Benefits from clear, no-nonsense instructions
+- Can reference trending topics and recent discussions`,
+
+  huggingface: `Target AI: HuggingFace model. Optimization tips:
+- Model capabilities vary — keep prompts focused and clear
+- Simpler, more direct instructions tend to work better
+- Specify desired output format explicitly
+- May have smaller context windows — be concise with context`,
+
+  openrouter: `Target AI: OpenRouter (model varies). Optimization tips:
+- The underlying model varies — use universally effective prompting
+- Be explicit about format, length, and depth expectations
+- Structure complex requests with clear sections
+- Include constraints and edge cases explicitly`,
+};
 
 // ── Deep Analysis Prompt (LLM-powered input analysis) ───────────────────────
 
@@ -157,6 +219,9 @@ const STORAGE_KEYS = {
   GEMINI_MODEL: 'geminiModel',
   CLAUDE_API_KEY: 'claudeApiKey',
   CLAUDE_MODEL: 'claudeModel',
+  CUSTOM_API_KEY: 'customApiKey',
+  CUSTOM_MODEL: 'customModel',
+  CUSTOM_ENDPOINT: 'customEndpoint',
   OLLAMA_ENDPOINT: 'ollamaEndpoint',
   OLLAMA_MODEL: 'ollamaModel',
   LAST_MODIFIER: 'lastModifier',
@@ -164,11 +229,14 @@ const STORAGE_KEYS = {
   CUSTOM_PRESETS: 'customPresets',
   PRESET_OVERRIDES: 'presetOverrides',
   ONBOARDING_COMPLETE: 'onboardingComplete',
-  DEEP_ANALYSIS: 'deepAnalysis'
+  DEEP_ANALYSIS: 'deepAnalysis',
+  UNDO_STATS: 'undoStats',
+  USAGE_STATS: 'usageStats',
+  MULTI_STEP: 'multiStep'
 };
 
 // Keys stored in chrome.storage.local (not sync)
-const LOCAL_ONLY_KEYS = [STORAGE_KEYS.HISTORY, STORAGE_KEYS.CUSTOM_PRESETS, STORAGE_KEYS.PRESET_OVERRIDES, STORAGE_KEYS.ONBOARDING_COMPLETE];
+const LOCAL_ONLY_KEYS = [STORAGE_KEYS.HISTORY, STORAGE_KEYS.CUSTOM_PRESETS, STORAGE_KEYS.PRESET_OVERRIDES, STORAGE_KEYS.ONBOARDING_COMPLETE, STORAGE_KEYS.UNDO_STATS, STORAGE_KEYS.USAGE_STATS];
 
 const DEFAULT_SETTINGS = {
   [STORAGE_KEYS.PROVIDER]: PROVIDERS.API,
@@ -179,10 +247,14 @@ const DEFAULT_SETTINGS = {
   [STORAGE_KEYS.GEMINI_MODEL]: 'gemini-2.0-flash',
   [STORAGE_KEYS.CLAUDE_API_KEY]: '',
   [STORAGE_KEYS.CLAUDE_MODEL]: 'claude-sonnet-4-20250514',
+  [STORAGE_KEYS.CUSTOM_API_KEY]: '',
+  [STORAGE_KEYS.CUSTOM_MODEL]: '',
+  [STORAGE_KEYS.CUSTOM_ENDPOINT]: '',
   [STORAGE_KEYS.OLLAMA_ENDPOINT]: 'http://localhost:11434',
   [STORAGE_KEYS.OLLAMA_MODEL]: 'llama3',
   [STORAGE_KEYS.LAST_MODIFIER]: 'short',
-  [STORAGE_KEYS.DEEP_ANALYSIS]: true
+  [STORAGE_KEYS.DEEP_ANALYSIS]: true,
+  [STORAGE_KEYS.MULTI_STEP]: false
 };
 
 const API_MODELS = {
@@ -206,14 +278,73 @@ const API_MODELS = {
 const API_HINTS = {
   openai: { url: 'https://platform.openai.com/api-keys', label: 'OpenAI Platform' },
   gemini: { url: 'https://aistudio.google.com/app/apikey', label: 'Google AI Studio' },
-  claude: { url: 'https://console.anthropic.com/settings/keys', label: 'Anthropic Console' }
+  claude: { url: 'https://console.anthropic.com/settings/keys', label: 'Anthropic Console' },
+  custom: { url: '', label: 'Your provider' }
 };
 
 // Maps API provider to its storage keys for key/model
 const API_STORAGE_MAP = {
   openai: { key: STORAGE_KEYS.OPENAI_API_KEY, model: STORAGE_KEYS.OPENAI_MODEL },
   gemini: { key: STORAGE_KEYS.GEMINI_API_KEY, model: STORAGE_KEYS.GEMINI_MODEL },
-  claude: { key: STORAGE_KEYS.CLAUDE_API_KEY, model: STORAGE_KEYS.CLAUDE_MODEL }
+  claude: { key: STORAGE_KEYS.CLAUDE_API_KEY, model: STORAGE_KEYS.CLAUDE_MODEL },
+  custom: { key: STORAGE_KEYS.CUSTOM_API_KEY, model: STORAGE_KEYS.CUSTOM_MODEL }
 };
 
 const MAX_HISTORY = 100;
+
+// ── Multi-Step Enhancement Pipeline ─────────────────────────────────────────
+// Three passes: Expand → Structure → Polish
+
+const MULTI_STEP_TEMPLATES = {
+  expand: `You are expanding a user's prompt. Your job is to take a rough, potentially incomplete prompt and flesh it out.
+
+- Add missing context, constraints, and specificity
+- Make implicit requirements explicit
+- Expand vague language into concrete details
+- Add relevant background the AI would need
+- Do NOT restructure or polish — just expand the content
+
+Return ONLY the expanded prompt.
+
+Prompt to expand:
+{{input}}`,
+
+  structure: `You are structuring an expanded prompt. The prompt has already been expanded with details — now organize it.
+
+- Break into clear sections with logical flow
+- Group related constraints together
+- Add numbered steps for sequential tasks
+- Separate context from instructions from output requirements
+- Ensure nothing is lost — restructure, don't remove
+
+Return ONLY the structured prompt.
+
+Prompt to structure:
+{{input}}`,
+
+  polish: `You are polishing a structured prompt. It's already expanded and organized — now make it crisp.
+
+- Tighten language — remove redundancy and filler
+- Ensure consistent tone throughout
+- Fix any awkward phrasing from previous passes
+- Make the opening line immediately clear about what's being asked
+- Verify all constraints are actionable and unambiguous
+
+Return ONLY the polished prompt.
+
+Prompt to polish:
+{{input}}`
+};
+
+// ── Token Cost Estimates (per 1M tokens, USD) ──────────────────────────────
+const TOKEN_COSTS = {
+  'gpt-4o':        { input: 2.50, output: 10.00 },
+  'gpt-4o-mini':   { input: 0.15, output: 0.60 },
+  'gpt-4-turbo':   { input: 10.00, output: 30.00 },
+  'o3-mini':       { input: 1.10, output: 4.40 },
+  'gemini-2.0-flash': { input: 0.10, output: 0.40 },
+  'gemini-1.5-flash': { input: 0.075, output: 0.30 },
+  'gemini-1.5-pro':   { input: 1.25, output: 5.00 },
+  'claude-sonnet-4-20250514': { input: 3.00, output: 15.00 },
+  'claude-haiku-4-5-20251001': { input: 0.80, output: 4.00 },
+};

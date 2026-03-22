@@ -128,6 +128,10 @@ function initDomRefs() {
     contextModal: $('context-modal'),
     contextModalContent: $('context-modal-content'),
     closeContextModal: $('close-context-modal'),
+    // Theme
+    themeToggleBtn: $('theme-toggle-btn'),
+    themeIconSun: $('theme-icon-sun'),
+    themeIconMoon: $('theme-icon-moon'),
     // Onboarding
     onboardingPage: $('onboarding-page'),
     onboardingApiKey: $('onboarding-api-key'),
@@ -1192,12 +1196,65 @@ function initBackground() {
   });
 }
 
+// ── Dark Mode ────────────────────────────────────────────────────────────────
+
+function getSystemTheme() {
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function resolveTheme(pref) {
+  if (pref === 'dark' || pref === 'light') return pref;
+  return getSystemTheme();
+}
+
+function applyTheme(theme) {
+  const resolved = resolveTheme(theme);
+  document.documentElement.setAttribute('data-theme', resolved);
+  if (els.themeIconSun && els.themeIconMoon) {
+    els.themeIconSun.style.display = resolved === 'dark' ? '' : 'none';
+    els.themeIconMoon.style.display = resolved === 'dark' ? 'none' : '';
+  }
+}
+
+function loadThemePreference() {
+  chrome.storage.local.get(['darkMode'], (result) => {
+    const pref = result.darkMode || 'auto';
+    applyTheme(pref);
+  });
+}
+
+function cycleTheme() {
+  chrome.storage.local.get(['darkMode'], (result) => {
+    const current = result.darkMode || 'auto';
+    const resolved = resolveTheme(current);
+    // Toggle: if currently showing light -> switch to dark, and vice-versa
+    // If on auto, go to the opposite of what auto resolved to
+    const next = resolved === 'light' ? 'dark' : 'light';
+    chrome.storage.local.set({ darkMode: next }, () => {
+      applyTheme(next);
+    });
+  });
+}
+
 // ── Init ────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
   initDomRefs();
   initBackground();
+  loadThemePreference();
   loadSettings();
+
+  // Dark mode toggle
+  els.themeToggleBtn.addEventListener('click', cycleTheme);
+
+  // Listen for system theme changes when preference is 'auto'
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    chrome.storage.local.get(['darkMode'], (result) => {
+      if (!result.darkMode || result.darkMode === 'auto') {
+        applyTheme('auto');
+      }
+    });
+  });
 
   // Navigation
   els.settingsBtn.addEventListener('click', () => navigateTo(els.settingsPage));

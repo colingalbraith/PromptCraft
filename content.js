@@ -13,6 +13,33 @@
 
   // Undo state — stores original text per element
   let undoState = null;
+  const streamState = { active: false, text: '', el: null };
+
+  // Helper to clear an input element
+  function clearInput(el) {
+    if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set
+        || Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+      if (setter) setter.call(el, '');
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    } else {
+      el.textContent = '';
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  }
+
+  // Helper to set input value (used by streaming)
+  function setInputValue(el, value) {
+    if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set
+        || Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+      if (setter) setter.call(el, value);
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    } else {
+      el.textContent = value;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  }
 
   // ── Fetch Settings ──────────────────────────────────────────────────────
 
@@ -192,6 +219,211 @@
     return messages;
   }
 
+  // ── Stopwords for keyword relevance scoring ──────────────────────────────
+  const STOPWORDS = new Set([
+    'a','about','above','after','again','against','all','am','an','and','any',
+    'are','as','at','be','because','been','before','being','below','between',
+    'both','but','by','can','could','did','do','does','doing','down','during',
+    'each','few','for','from','further','get','got','had','has','have','having',
+    'he','her','here','hers','herself','him','himself','his','how','i','if',
+    'in','into','is','it','its','itself','just','ll','let','like','me','might',
+    'more','most','my','myself','no','nor','not','now','of','off','on','once',
+    'only','or','other','our','ours','ourselves','out','over','own','re','s',
+    'same','shall','she','should','so','some','such','t','than','that','the',
+    'their','theirs','them','themselves','then','there','these','they','this',
+    'those','through','to','too','under','until','up','ve','very','was','we',
+    'were','what','when','where','which','while','who','whom','why','will',
+    'with','would','you','your','yours','yourself','yourselves','d','m',
+    'also','been','don','doesn','didn','hadn','hasn','haven','isn','wasn',
+    'weren','won','wouldn','shouldn','couldn','mustn','needn','shan',
+    'ok','okay','yes','no','yeah','please','thanks','thank','hello','hi',
+    'hey','sure','right','well','oh','um','uh','ah','hmm'
+  ]);
+
+  /**
+   * Tokenize text into lowercase words, filtering out stopwords and
+   * very short tokens (length < 2).
+   */
+  function tokenize(text) {
+    return text.toLowerCase().match(/[a-z0-9_]+(?:\.[a-z0-9_]+)*/g)?.filter(
+      w => w.length >= 2 && !STOPWORDS.has(w)
+    ) || [];
+  }
+
+  /**
+   * Detect likely technical terms, proper nouns, and domain-specific vocabulary
+   * in a text. These are weighted higher in relevance scoring.
+   * Looks for: camelCase, PascalCase, UPPER_CASE, dotted.names, words with
+   * digits, and known tech patterns.
+   */
+  function extractSpecialTerms(text) {
+    const terms = new Set();
+    // camelCase / PascalCase identifiers (e.g. useState, DataFrame)
+    const camelCase = text.match(/[a-z][a-zA-Z0-9]*[A-Z][a-zA-Z0-9]*/g) || [];
+    camelCase.forEach(t => terms.add(t.toLowerCase()));
+    // PascalCase starting with uppercase
+    const pascal = text.match(/[A-Z][a-z]+[A-Z][a-zA-Z0-9]*/g) || [];
+    pascal.forEach(t => terms.add(t.toLowerCase()));
+    // UPPER_CASE constants
+    const upperConst = text.match(/[A-Z][A-Z0-9_]{2,}/g) || [];
+    upperConst.forEach(t => terms.add(t.toLowerCase()));
+    // dotted identifiers (e.g. np.array, os.path)
+    const dotted = text.match(/[a-zA-Z_][a-zA-Z0-9_]*\.[a-zA-Z_][a-zA-Z0-9_]*/g) || [];
+    dotted.forEach(t => terms.add(t.toLowerCase()));
+    // Words containing digits mixed with letters (e.g. h264, utf8, int32)
+    const alphaNum = text.match(/[a-zA-Z]+\d+[a-zA-Z0-9]*/g) || [];
+    alphaNum.forEach(t => terms.add(t.toLowerCase()));
+    const numAlpha = text.match(/\d+[a-zA-Z]+[a-zA-Z0-9]*/g) || [];
+    numAlpha.forEach(t => terms.add(t.toLowerCase()));
+    // Code-like patterns with underscores (e.g. my_function, data_frame)
+    const underscore = text.match(/[a-zA-Z][a-zA-Z0-9]*_[a-zA-Z0-9_]+/g) || [];
+    underscore.forEach(t => terms.add(t.toLowerCase()));
+    return terms;
+  }
+
+  /**
+   * Score a single message for relevance to the prompt.
+   *
+   * Components:
+   *   - keywordOverlap: fraction of prompt keywords found in the message
+   *   - specialTermOverlap: bonus for shared technical/domain terms
+   *   - recency: normalized position (0 = oldest, 1 = newest)
+   *   - roleWeight: user messages get a slight boost
+   *
+   * Returns a numeric score (higher = more relevant).
+   */
+  function scoreMessage(msg, promptTokens, promptSpecialTerms, index, totalMessages) {
+    // Keyword overlap
+    const msgTokens = new Set(tokenize(msg.text));
+    let keywordHits = 0;
+    for (const pt of promptTokens) {
+      if (msgTokens.has(pt)) keywordHits++;
+    }
+    const keywordScore = promptTokens.length > 0
+      ? keywordHits / promptTokens.length
+      : 0;
+
+    // Semantic proximity — shared special/technical terms
+    const msgSpecial = extractSpecialTerms(msg.text);
+    let specialHits = 0;
+    for (const term of promptSpecialTerms) {
+      if (msgSpecial.has(term)) specialHits++;
+      // Also check if the term appears as a substring in any msg special term
+      for (const mt of msgSpecial) {
+        if (mt !== term && (mt.includes(term) || term.includes(mt))) {
+          specialHits += 0.5;
+          break;
+        }
+      }
+    }
+    const specialScore = promptSpecialTerms.size > 0
+      ? Math.min(1, specialHits / promptSpecialTerms.size)
+      : 0;
+
+    // Recency: linear scale, most recent = 1
+    const recency = totalMessages > 1
+      ? index / (totalMessages - 1)
+      : 1;
+
+    // Role weight: user messages slightly more relevant for understanding intent
+    const roleWeight = msg.role === 'user' ? 1.15 : 1.0;
+
+    // Weighted combination
+    const score = (
+      keywordScore * 0.40 +
+      specialScore * 0.25 +
+      recency * 0.20 +
+      0.15 // base relevance so all messages have some score
+    ) * roleWeight;
+
+    return score;
+  }
+
+  /**
+   * Select the most relevant messages from the full conversation, given the
+   * current prompt text. Always includes the last 2 messages for immediate
+   * context, then fills remaining budget with highest-scored messages.
+   *
+   * @param {Array} messages - All extracted messages [{role, text}, ...]
+   * @param {string} promptText - The user's current prompt being enhanced
+   * @param {number} maxChars - Maximum total characters for selected context (default 3000)
+   * @returns {Array} Selected messages in original chronological order
+   */
+  function selectRelevantMessages(messages, promptText, maxChars) {
+    maxChars = maxChars || 3000;
+    const MAX_MSG_LEN = 400; // truncate individual messages to this length
+
+    // Truncate individual message texts for scoring and output
+    const prepared = messages.map((m, i) => ({
+      role: m.role,
+      text: m.text.length > MAX_MSG_LEN ? m.text.substring(0, MAX_MSG_LEN) + '...' : m.text,
+      originalIndex: i
+    }));
+
+    if (prepared.length === 0) return [];
+
+    // If no prompt text, fall back to taking the most recent messages that fit
+    if (!promptText || !promptText.trim()) {
+      let total = 0;
+      const result = [];
+      for (let i = prepared.length - 1; i >= 0; i--) {
+        const cost = prepared[i].text.length + 20; // 20 chars overhead for label
+        if (total + cost > maxChars) break;
+        total += cost;
+        result.unshift(prepared[i]);
+      }
+      return result;
+    }
+
+    // Precompute prompt analysis
+    const promptTokens = tokenize(promptText);
+    const promptSpecialTerms = extractSpecialTerms(promptText);
+
+    // Score every message
+    const scored = prepared.map((m, idx) => ({
+      ...m,
+      score: scoreMessage(m, promptTokens, promptSpecialTerms, idx, prepared.length)
+    }));
+
+    // Always include the most recent 2 messages (guaranteed immediate context)
+    const guaranteedCount = Math.min(2, scored.length);
+    const guaranteedIndices = new Set();
+    for (let i = scored.length - guaranteedCount; i < scored.length; i++) {
+      guaranteedIndices.add(i);
+    }
+
+    // Calculate budget used by guaranteed messages
+    let charBudget = maxChars;
+    for (const idx of guaranteedIndices) {
+      charBudget -= scored[idx].text.length + 20;
+    }
+
+    // Rank remaining messages by score (descending)
+    const candidates = scored
+      .map((m, idx) => ({ ...m, scoredIndex: idx }))
+      .filter((_, idx) => !guaranteedIndices.has(idx))
+      .sort((a, b) => b.score - a.score);
+
+    // Greedily select top-scored messages that fit in remaining budget
+    const selectedIndices = new Set(guaranteedIndices);
+    for (const candidate of candidates) {
+      const cost = candidate.text.length + 20;
+      if (cost > charBudget) continue;
+      charBudget -= cost;
+      selectedIndices.add(candidate.scoredIndex);
+    }
+
+    // Return selected messages in original chronological order
+    const result = [];
+    for (let i = 0; i < scored.length; i++) {
+      if (selectedIndices.has(i)) {
+        result.push({ role: scored[i].role, text: scored[i].text });
+      }
+    }
+    return result;
+  }
+
+  // Legacy fallback: simple recency-based truncation (used when no prompt is available)
   function truncateMessages(messages, maxMessages, maxChars) {
     let recent = messages.slice(-maxMessages);
     recent = recent.map(m => ({
@@ -209,7 +441,15 @@
     return result;
   }
 
-  function extractPageConversation() {
+  /**
+   * Extract conversation context from the page.
+   *
+   * @param {string} [promptText] - Optional current prompt text. When provided,
+   *   messages are ranked by relevance to the prompt. When omitted, falls back
+   *   to simple recency-based selection (last 8 messages, 3000 chars).
+   * @returns {{ platform: string, conversation: string, messageCount: number } | null}
+   */
+  function extractPageConversation(promptText) {
     try {
       const platform = detectPlatform();
       let messages = [];
@@ -226,10 +466,17 @@
 
       if (messages.length === 0) return null;
 
-      messages = truncateMessages(messages, 8, 3000);
-      if (messages.length === 0) return null;
+      // Use relevance-based selection when prompt text is available,
+      // otherwise fall back to simple recency truncation.
+      let selected;
+      if (promptText && promptText.trim()) {
+        selected = selectRelevantMessages(messages, promptText, 3000);
+      } else {
+        selected = truncateMessages(messages, 8, 3000);
+      }
+      if (selected.length === 0) return null;
 
-      const conversation = messages.map(m => {
+      const conversation = selected.map(m => {
         const label = m.role === 'user' ? '[User]' : '[Assistant]';
         return `${label}: ${m.text}`;
       }).join('\n\n');
@@ -237,7 +484,7 @@
       return {
         platform: platform || 'Unknown',
         conversation,
-        messageCount: messages.length
+        messageCount: selected.length
       };
     } catch (err) {
       console.error('PromptCraft: Error extracting conversation:', err);
@@ -651,7 +898,7 @@
     undoState = { el: inputEl, text };
 
     const modifier = cachedSettings?.lastModifier || 'short';
-    const context = extractPageConversation();
+    const context = extractPageConversation(text);
 
     isProcessing = true;
     cancelTypewriter();
@@ -759,6 +1006,32 @@
     if (msg.action === 'getConversation') {
       const context = extractPageConversation();
       sendResponse({ context });
+      return;
+    }
+
+    // Streaming: background sends chunks as they arrive
+    if (msg.action === 'streamStart') {
+      streamState.active = true;
+      streamState.text = '';
+      streamState.el = findActiveInput();
+      if (streamState.el) {
+        clearInput(streamState.el);
+      }
+      return;
+    }
+
+    if (msg.action === 'streamChunk' && streamState.active && streamState.el) {
+      streamState.text += msg.text;
+      setInputValue(streamState.el, streamState.text);
+      return;
+    }
+
+    if (msg.action === 'streamDone') {
+      streamState.active = false;
+      if (streamState.el) {
+        removeGlow();
+        showToast('Prompt enhanced!');
+      }
       return;
     }
   });

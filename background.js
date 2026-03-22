@@ -202,6 +202,59 @@ async function callClaude(prompt, settings, config) {
   return text;
 }
 
+async function callCustom(prompt, settings, config) {
+  const apiKey = settings[STORAGE_KEYS.CUSTOM_API_KEY];
+  const endpoint = settings[STORAGE_KEYS.CUSTOM_ENDPOINT];
+  const model = settings[STORAGE_KEYS.CUSTOM_MODEL];
+
+  if (!endpoint) {
+    throw new Error('Custom endpoint not set. Please configure it in Settings (e.g., https://api.groq.com/openai/v1).');
+  }
+  if (!model) {
+    throw new Error('Custom model not set. Please enter a model name in Settings.');
+  }
+
+  // Uses OpenAI-compatible /chat/completions format (works with Groq, Together, OpenRouter, vLLM, LiteLLM, etc.)
+  const url = endpoint.replace(/\/+$/, '') + '/chat/completions';
+
+  const headers = { 'Content-Type': 'application/json' };
+  if (apiKey) {
+    headers['Authorization'] = `Bearer ${apiKey}`;
+  }
+
+  const response = await fetchWithTimeout(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: prompt }
+      ],
+      temperature: config.temperature,
+      max_tokens: config.maxTokens
+    })
+  });
+
+  if (!response.ok) {
+    let detail = '';
+    try {
+      const errJson = await response.json();
+      detail = errJson?.error?.message || JSON.stringify(errJson);
+    } catch {
+      detail = await response.text();
+    }
+    throw new Error(`Custom API error (${response.status}): ${detail.substring(0, 200)}`);
+  }
+
+  const data = await response.json();
+  const text = data?.choices?.[0]?.message?.content?.trim();
+  if (!text) {
+    throw new Error('Empty response from custom API endpoint.');
+  }
+  return text;
+}
+
 async function callOllama(prompt, settings, config) {
   const endpoint = settings[STORAGE_KEYS.OLLAMA_ENDPOINT] || DEFAULT_SETTINGS[STORAGE_KEYS.OLLAMA_ENDPOINT];
   const model = settings[STORAGE_KEYS.OLLAMA_MODEL] || DEFAULT_SETTINGS[STORAGE_KEYS.OLLAMA_MODEL];
@@ -243,10 +296,146 @@ async function callOllama(prompt, settings, config) {
   return text;
 }
 
+// ── Streaming Provider Calls ────────────────────────────────────────────────
+// Stream chunks back to content.js via chrome.tabs.sendMessage
+
+async function streamOpenAI(prompt, settings, config, tabId) {
+  const apiKey = settings[STORAGE_KEYS.OPENAI_API_KEY];
+  if (!apiKey) throw new Error('OpenAI API key not set.');
+  const model = settings[STORAGE_KEYS.OPENAI_MODEL] || DEFAULT_SETTINGS[STORAGE_KEYS.OPENAI_MODEL];
+
+  const response = await fetchWithTimeout('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model, messages: [{ role: 'system', content: SYSTEM_PROMPT }, { role: 'user', content: prompt }],
+      temperature: config.temperature, max_tokens: config.maxTokens, stream: true
+    })
+  });
+  if (!response.ok) throw new Error(`OpenAI error (${response.status})`);
+
+  return await processSSEStream(response.body, tabId, (chunk) => {
+    try {
+      const data = JSON.parse(chunk);
+      return data.choices?.[0]?.delta?.content || '';
+    } catch { return ''; }
+  });
+}
+
+async function streamGemini(prompt, settings, config, tabId) {
+  const apiKey = settings[STORAGE_KEYS.GEMINI_API_KEY];
+  if (!apiKey) throw new Error('Gemini API key not set.');
+  const model = settings[STORAGE_KEYS.GEMINI_MODEL] || DEFAULT_SETTINGS[STORAGE_KEYS.GEMINI_MODEL];
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
+
+  const response = await fetchWithTimeout(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { temperature: config.temperature, topK: 32, topP: 1, maxOutputTokens: config.maxTokens }
+    })
+  });
+  if (!response.ok) throw new Error(`Gemini error (${response.status})`);
+
+  return await processSSEStream(response.body, tabId, (chunk) => {
+    try {
+      const data = JSON.parse(chunk);
+      return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    } catch { return ''; }
+  });
+}
+
+async function streamCustom(prompt, settings, config, tabId) {
+  const endpoint = (settings[STORAGE_KEYS.CUSTOM_ENDPOINT] || '').replace(/\/+$/, '') + '/chat/completions';
+  const model = settings[STORAGE_KEYS.CUSTOM_MODEL];
+  if (!endpoint || !model) throw new Error('Custom endpoint/model not set.');
+
+  const headers = { 'Content-Type': 'application/json' };
+  if (settings[STORAGE_KEYS.CUSTOM_API_KEY]) headers['Authorization'] = `Bearer ${settings[STORAGE_KEYS.CUSTOM_API_KEY]}`;
+
+  const response = await fetchWithTimeout(endpoint, {
+    method: 'POST', headers,
+    body: JSON.stringify({
+      model, messages: [{ role: 'system', content: SYSTEM_PROMPT }, { role: 'user', content: prompt }],
+      temperature: config.temperature, max_tokens: config.maxTokens, stream: true
+    })
+  });
+  if (!response.ok) throw new Error(`Custom API error (${response.status})`);
+
+  return await processSSEStream(response.body, tabId, (chunk) => {
+    try {
+      const data = JSON.parse(chunk);
+      return data.choices?.[0]?.delta?.content || '';
+    } catch { return ''; }
+  });
+}
+
+// Process Server-Sent Events stream and send chunks to content.js
+async function processSSEStream(body, tabId, parseChunk) {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let fullText = '';
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop(); // Keep incomplete line in buffer
+
+    for (const line of lines) {
+      if (line.startsWith('data: ')) {
+        const data = line.slice(6).trim();
+        if (data === '[DONE]') continue;
+        const text = parseChunk(data);
+        if (text) {
+          fullText += text;
+          // Send chunk to content.js for real-time display
+          if (tabId) {
+            chrome.tabs.sendMessage(tabId, { action: 'streamChunk', text }).catch(() => {});
+          }
+        }
+      }
+    }
+  }
+
+  // Signal stream complete
+  if (tabId) {
+    chrome.tabs.sendMessage(tabId, { action: 'streamDone' }).catch(() => {});
+  }
+
+  return fullText.trim();
+}
+
+// Route to streaming provider
+async function callProviderStreaming(prompt, settings, config, tabId) {
+  const provider = settings[STORAGE_KEYS.API_PROVIDER] || API_PROVIDERS.GEMINI;
+  switch (provider) {
+    case API_PROVIDERS.OPENAI: return await streamOpenAI(prompt, settings, config, tabId);
+    case API_PROVIDERS.GEMINI: return await streamGemini(prompt, settings, config, tabId);
+    case API_PROVIDERS.CUSTOM: return await streamCustom(prompt, settings, config, tabId);
+    // Claude and Ollama don't easily support streaming from extension context — fall back to non-streaming
+    default: return null;
+  }
+}
+
 // ── Build Context Block ─────────────────────────────────────────────────────
 
 function buildContextBlock(context, tabId) {
   let block = '';
+
+  // Platform-specific optimization hints
+  if (context && context.platform) {
+    const platformKey = context.platform.toLowerCase().replace(/[^a-z]/g, '');
+    const hint = PLATFORM_HINTS[platformKey];
+    if (hint) {
+      block += `\n${hint}\nOptimize the enhanced prompt for this specific AI's strengths.\n`;
+    }
+  }
 
   // Conversation context from the AI chat page
   if (context && context.conversation) {
@@ -264,6 +453,42 @@ function buildContextBlock(context, tabId) {
   return block;
 }
 
+// ── Score Hints Builder ──────────────────────────────────────────────────────
+// Converts a prompt score into hints the AI can use to gauge how much work is needed.
+
+function _buildScoreHints(score) {
+  if (!score || typeof score.overall !== 'number') return '';
+
+  const parts = [];
+  const b = score.breakdown;
+
+  let effort;
+  if (score.overall >= 80) effort = 'minor polish only';
+  else if (score.overall >= 60) effort = 'moderate enhancement needed';
+  else if (score.overall >= 40) effort = 'significant improvement needed';
+  else effort = 'major rewrite needed';
+
+  parts.push(`Prompt Quality Score: ${score.overall}/100 (${effort}).`);
+
+  // Call out the weakest dimensions so the AI focuses there
+  const dims = Object.entries(b).sort((a, b) => a[1] - b[1]);
+  const weak = dims.filter(([, v]) => v < 50);
+  const strong = dims.filter(([, v]) => v >= 70);
+
+  if (weak.length > 0) {
+    parts.push(`Weakest areas: ${weak.map(([k, v]) => `${k} (${v}/100)`).join(', ')} — focus enhancement here.`);
+  }
+  if (strong.length > 0) {
+    parts.push(`Strong areas: ${strong.map(([k, v]) => `${k} (${v}/100)`).join(', ')} — preserve these qualities.`);
+  }
+
+  if (score.suggestions && score.suggestions.length > 0) {
+    parts.push('Suggested improvements: ' + score.suggestions.join(' | '));
+  }
+
+  return '\n\nPrompt Score Analysis (use to calibrate enhancement depth):\n' + parts.map(p => `• ${p}`).join('\n') + '\n';
+}
+
 // ── Call Provider (unified routing) ─────────────────────────────────────────
 
 async function callProvider(prompt, modifier, settings, context, tabId) {
@@ -278,6 +503,12 @@ async function callProvider(prompt, modifier, settings, context, tabId) {
 
   // Analyze the user's input before enhancement
   const analysis = InputParser.analyze(prompt);
+
+  // Score the prompt before enhancement
+  const preScore = InputParser.scorePrompt(prompt);
+
+  // Build score hints for the AI so it knows how much work is needed
+  const scoreHints = _buildScoreHints(preScore);
 
   // Deep analysis (LLM-powered) if enabled
   let deepHints = '';
@@ -316,6 +547,18 @@ async function callProvider(prompt, modifier, settings, context, tabId) {
           const data = await resp.json();
           return data.content?.[0]?.text || '';
         }
+        case API_PROVIDERS.CUSTOM: {
+          const endpoint = (settings[STORAGE_KEYS.CUSTOM_ENDPOINT] || '').replace(/\/+$/, '') + '/chat/completions';
+          const headers = { 'Content-Type': 'application/json' };
+          if (settings[STORAGE_KEYS.CUSTOM_API_KEY]) headers['Authorization'] = `Bearer ${settings[STORAGE_KEYS.CUSTOM_API_KEY]}`;
+          const resp = await fetchWithTimeout(endpoint, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ model: settings[STORAGE_KEYS.CUSTOM_MODEL] || 'default', messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: text }], temperature: 0.2, max_tokens: 2000 })
+          });
+          const data = await resp.json();
+          return data.choices?.[0]?.message?.content || '';
+        }
         default: {
           const model = settings[STORAGE_KEYS.GEMINI_MODEL] || 'gemini-2.0-flash';
           const resp = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${settings[STORAGE_KEYS.GEMINI_API_KEY]}`, {
@@ -334,8 +577,12 @@ async function callProvider(prompt, modifier, settings, context, tabId) {
   // Build context block from conversation + session memory
   const contextBlock = buildContextBlock(context, tabId);
 
-  // Combine context block with input analysis hints
-  const fullContext = contextBlock + analysis.hints + deepHints;
+  // Combine context block with input analysis hints and prompt score
+  // Undo learning hints
+  const undoStats = await getUndoStats();
+  const undoHints = buildUndoHints(undoStats, modifier);
+
+  const fullContext = contextBlock + analysis.hints + scoreHints + deepHints + undoHints;
 
   // Build full prompt from template
   let fullPrompt;
@@ -350,19 +597,62 @@ async function callProvider(prompt, modifier, settings, context, tabId) {
   const config = STYLE_CONFIG[modifier] || STYLE_CONFIG.short;
 
   // Route to provider
+  let enhancedText;
   if (settings[STORAGE_KEYS.PROVIDER] === PROVIDERS.OLLAMA) {
-    return await callOllama(fullPrompt, settings, config);
+    enhancedText = await callOllama(fullPrompt, settings, config);
+  } else {
+    const apiProvider = settings[STORAGE_KEYS.API_PROVIDER] || API_PROVIDERS.GEMINI;
+    switch (apiProvider) {
+      case API_PROVIDERS.OPENAI:
+        enhancedText = await callOpenAI(fullPrompt, settings, config);
+        break;
+      case API_PROVIDERS.CLAUDE:
+        enhancedText = await callClaude(fullPrompt, settings, config);
+        break;
+      case API_PROVIDERS.CUSTOM:
+        enhancedText = await callCustom(fullPrompt, settings, config);
+        break;
+      default:
+        enhancedText = await callGemini(fullPrompt, settings, config);
+        break;
+    }
   }
 
-  const apiProvider = settings[STORAGE_KEYS.API_PROVIDER] || API_PROVIDERS.GEMINI;
-  switch (apiProvider) {
-    case API_PROVIDERS.OPENAI:
-      return await callOpenAI(fullPrompt, settings, config);
-    case API_PROVIDERS.CLAUDE:
-      return await callClaude(fullPrompt, settings, config);
-    default:
-      return await callGemini(fullPrompt, settings, config);
+  return { text: enhancedText, preScore };
+}
+
+// ── Multi-Step Enhancement Pipeline ──────────────────────────────────────────
+
+async function callProviderMultiStep(prompt, modifier, settings, context, tabId) {
+  const config = STYLE_CONFIG[modifier] || STYLE_CONFIG.short;
+  const steps = ['expand', 'structure', 'polish'];
+  let currentPrompt = prompt;
+
+  for (const step of steps) {
+    const template = MULTI_STEP_TEMPLATES[step];
+    const fullPrompt = template.replace('{{input}}', currentPrompt);
+
+    if (settings[STORAGE_KEYS.PROVIDER] === PROVIDERS.OLLAMA) {
+      currentPrompt = await callOllama(fullPrompt, settings, config);
+    } else {
+      const apiProvider = settings[STORAGE_KEYS.API_PROVIDER] || API_PROVIDERS.GEMINI;
+      switch (apiProvider) {
+        case API_PROVIDERS.OPENAI:
+          currentPrompt = await callOpenAI(fullPrompt, settings, config);
+          break;
+        case API_PROVIDERS.CLAUDE:
+          currentPrompt = await callClaude(fullPrompt, settings, config);
+          break;
+        case API_PROVIDERS.CUSTOM:
+          currentPrompt = await callCustom(fullPrompt, settings, config);
+          break;
+        default:
+          currentPrompt = await callGemini(fullPrompt, settings, config);
+      }
+    }
   }
+
+  return currentPrompt;
 }
 
 // ── Connection Testing ──────────────────────────────────────────────────────
@@ -517,6 +807,97 @@ async function getConversationFromTab() {
   }
 }
 
+// ── Token/Cost Tracking ─────────────────────────────────────────────────────
+
+async function getUsageStats() {
+  return new Promise(resolve => {
+    chrome.storage.local.get([STORAGE_KEYS.USAGE_STATS], result => {
+      resolve(result[STORAGE_KEYS.USAGE_STATS] || {
+        totalEnhancements: 0,
+        totalInputTokens: 0,
+        totalOutputTokens: 0,
+        totalCostUSD: 0,
+        byModel: {},
+        since: Date.now()
+      });
+    });
+  });
+}
+
+function estimateTokens(text) {
+  // ~4 chars per token is a reasonable estimate for English text
+  return Math.ceil((text || '').length / 4);
+}
+
+async function trackUsage(model, inputText, outputText, deepAnalysisUsed) {
+  const stats = await getUsageStats();
+  const inputTokens = estimateTokens(inputText);
+  const outputTokens = estimateTokens(outputText);
+
+  // If deep analysis was used, roughly double the input tokens (two API calls)
+  const adjustedInput = deepAnalysisUsed ? inputTokens * 2 : inputTokens;
+
+  stats.totalEnhancements++;
+  stats.totalInputTokens += adjustedInput;
+  stats.totalOutputTokens += outputTokens;
+
+  // Calculate cost
+  const costs = TOKEN_COSTS[model];
+  if (costs) {
+    const cost = (adjustedInput / 1000000) * costs.input + (outputTokens / 1000000) * costs.output;
+    stats.totalCostUSD += cost;
+
+    if (!stats.byModel[model]) stats.byModel[model] = { enhancements: 0, inputTokens: 0, outputTokens: 0, costUSD: 0 };
+    stats.byModel[model].enhancements++;
+    stats.byModel[model].inputTokens += adjustedInput;
+    stats.byModel[model].outputTokens += outputTokens;
+    stats.byModel[model].costUSD += cost;
+  }
+
+  chrome.storage.local.set({ [STORAGE_KEYS.USAGE_STATS]: stats });
+}
+
+// ── Undo Learning ───────────────────────────────────────────────────────────
+
+async function getUndoStats() {
+  return new Promise(resolve => {
+    chrome.storage.local.get([STORAGE_KEYS.UNDO_STATS], result => {
+      resolve(result[STORAGE_KEYS.UNDO_STATS] || { byStyle: {}, byPlatform: {}, total: 0, undone: 0 });
+    });
+  });
+}
+
+async function recordEnhancement(modifier, platform) {
+  const stats = await getUndoStats();
+  stats.total++;
+  if (!stats.byStyle[modifier]) stats.byStyle[modifier] = { total: 0, undone: 0 };
+  stats.byStyle[modifier].total++;
+  if (platform) {
+    if (!stats.byPlatform[platform]) stats.byPlatform[platform] = { total: 0, undone: 0 };
+    stats.byPlatform[platform].total++;
+  }
+  chrome.storage.local.set({ [STORAGE_KEYS.UNDO_STATS]: stats });
+}
+
+async function recordUndo(modifier, platform) {
+  const stats = await getUndoStats();
+  stats.undone++;
+  if (stats.byStyle[modifier]) stats.byStyle[modifier].undone++;
+  if (platform && stats.byPlatform[platform]) stats.byPlatform[platform].undone++;
+  chrome.storage.local.set({ [STORAGE_KEYS.UNDO_STATS]: stats });
+}
+
+function buildUndoHints(stats, modifier) {
+  if (stats.total < 10) return '';
+  const styleStats = stats.byStyle[modifier];
+  if (!styleStats || styleStats.total < 5) return '';
+  const undoRate = styleStats.undone / styleStats.total;
+  if (undoRate > 0.4) {
+    return `\nNote: The user frequently undoes "${modifier}" style enhancements (${Math.round(undoRate * 100)}% undo rate). Make more conservative, subtle improvements.\n`;
+  }
+  return '';
+}
+
 // ── Preamble Stripping ──────────────────────────────────────────────────────
 // Models sometimes add commentary before the actual enhanced prompt.
 // This strips common preamble patterns.
@@ -615,16 +996,59 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           }
         }
 
-        let text = await callProvider(
-          message.prompt,
-          message.modifier || 'short',
-          settings,
-          context,
-          tabId
-        );
+        // Try streaming for supported providers (non-multi-step, non-Ollama, non-Claude)
+        let result;
+        const canStream = !settings[STORAGE_KEYS.MULTI_STEP]
+          && settings[STORAGE_KEYS.PROVIDER] !== PROVIDERS.OLLAMA
+          && settings[STORAGE_KEYS.API_PROVIDER] !== API_PROVIDERS.CLAUDE;
+
+        if (canStream && tabId) {
+          // Build full prompt same as callProvider would
+          const overrides = await getPresetOverrides();
+          let tmpl = overrides[message.modifier || 'short'] || TEMPLATES[message.modifier || 'short'] || TEMPLATES.short;
+          const analysis = InputParser.analyze(message.prompt);
+          const preScore = InputParser.scorePrompt(message.prompt);
+          const ctxBlock = buildContextBlock(context, tabId);
+          const fullCtx = ctxBlock + analysis.hints;
+          let streamPrompt = tmpl.includes('{{context}}')
+            ? tmpl.replace('{{context}}', fullCtx).replace('{{input}}', message.prompt)
+            : fullCtx + tmpl.replace('{{input}}', message.prompt);
+          const cfg = STYLE_CONFIG[message.modifier || 'short'] || STYLE_CONFIG.short;
+
+          // Notify content.js that streaming is starting
+          chrome.tabs.sendMessage(tabId, { action: 'streamStart' }).catch(() => {});
+
+          const streamedText = await callProviderStreaming(streamPrompt, settings, cfg, tabId);
+          if (streamedText) {
+            result = { text: stripPreamble(streamedText), preScore };
+          }
+        }
+
+        if (!result && settings[STORAGE_KEYS.MULTI_STEP]) {
+          // Multi-step pipeline: expand → structure → polish
+          const multiText = await callProviderMultiStep(
+            message.prompt, message.modifier || 'short', settings, context, tabId
+          );
+          const preScore = InputParser.scorePrompt(message.prompt);
+          result = { text: multiText, preScore };
+        } else {
+          result = await callProvider(
+            message.prompt,
+            message.modifier || 'short',
+            settings,
+            context,
+            tabId
+          );
+        }
+
+        let text = result.text;
+        const preScore = result.preScore;
 
         // Strip any preamble the model leaked (e.g., "Here's your improved prompt:", "Sure!", "Okay, let's...")
         text = stripPreamble(text);
+
+        // Score the enhanced prompt (post-enhancement)
+        const postScore = InputParser.scorePrompt(text);
 
         // Update session memory for this tab
         if (tabId) {
@@ -641,13 +1065,49 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           output: text.substring(0, 800),
           modifier: message.modifier || 'short',
           timestamp: Date.now(),
-          platform: context?.platform || null
+          platform: context?.platform || null,
+          preScore: preScore,
+          postScore: postScore
         });
 
-        sendResponse({ success: true, text });
+        // Record enhancement for undo learning
+        await recordEnhancement(message.modifier || 'short', context?.platform || null);
+
+        // Track token usage and cost
+        const activeModel = settings[STORAGE_KEYS.PROVIDER] === PROVIDERS.OLLAMA
+          ? settings[STORAGE_KEYS.OLLAMA_MODEL]
+          : settings[`${settings[STORAGE_KEYS.API_PROVIDER]}Model`] || '';
+        await trackUsage(activeModel, message.prompt, text, !!settings[STORAGE_KEYS.DEEP_ANALYSIS]);
+
+        sendResponse({ success: true, text, preScore, postScore });
       } catch (err) {
         sendResponse({ success: false, error: err.message });
       }
+    })();
+    return true;
+  }
+
+  // Usage stats
+  if (action === 'getUsageStats') {
+    (async () => {
+      const stats = await getUsageStats();
+      sendResponse({ success: true, stats });
+    })();
+    return true;
+  }
+
+  if (action === 'resetUsageStats') {
+    chrome.storage.local.remove([STORAGE_KEYS.USAGE_STATS], () => {
+      sendResponse({ success: true });
+    });
+    return true;
+  }
+
+  // Undo tracking
+  if (action === 'recordUndo') {
+    (async () => {
+      await recordUndo(message.modifier || 'short', message.platform || null);
+      sendResponse({ success: true });
     })();
     return true;
   }

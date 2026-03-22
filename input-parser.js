@@ -564,4 +564,424 @@ const InputParser = {
 
     return '\n\nInput Analysis (use this to guide your enhancement):\n' + parts.map(p => `• ${p}`).join('\n') + '\n';
   },
+
+  // ── Prompt Scoring System ─────────────────────────────────────────────────
+  // Returns a deterministic 0-100 score with breakdown and suggestions.
+
+  scorePrompt(text) {
+    if (!text || typeof text !== 'string' || text.trim().length === 0) {
+      return {
+        overall: 0,
+        breakdown: { specificity: 0, clarity: 0, structure: 0, context: 0, actionability: 0 },
+        suggestions: ['Provide a non-empty prompt to score.']
+      };
+    }
+
+    const trimmed = text.trim();
+    const specificity  = this._scoreSpecificity(trimmed);
+    const clarity      = this._scoreClarity(trimmed);
+    const structure    = this._scoreStructure(trimmed);
+    const context      = this._scoreContext(trimmed);
+    const actionability = this._scoreActionability(trimmed);
+
+    // Weighted average: actionability and specificity matter most
+    const overall = Math.round(
+      specificity  * 0.22 +
+      clarity      * 0.20 +
+      structure    * 0.18 +
+      context      * 0.18 +
+      actionability * 0.22
+    );
+
+    const suggestions = this._generateSuggestions(trimmed, {
+      specificity, clarity, structure, context, actionability
+    });
+
+    return {
+      overall,
+      breakdown: { specificity, clarity, structure, context, actionability },
+      suggestions
+    };
+  },
+
+  // ── Specificity Score ─────────────────────────────────────────────────────
+  // Penalizes vague words, rewards numbers, technical terms, named entities.
+  _scoreSpecificity(text) {
+    const words = text.split(/\s+/).filter(w => w.length > 0);
+    if (words.length === 0) return 0;
+
+    let score = 50; // Start neutral
+
+    // Penalize vague/filler words
+    const vagueWords = /\b(something|stuff|things?|good|bad|nice|cool|great|awesome|interesting|important|basically|just|really|very|like|kind\s+of|sort\s+of|a\s+lot|some|certain|various|many|few|several|much|quite|pretty\s+much|somehow|whatever|anything|everything|somewhere|someone|anybody)\b/gi;
+    const vagueMatches = text.match(vagueWords) || [];
+    const vagueRatio = vagueMatches.length / words.length;
+    score -= Math.min(35, Math.round(vagueRatio * 200));
+
+    // Reward numbers and quantifiers (specific amounts, dates, percentages)
+    const numberMatches = text.match(/\b\d+[\d.,]*%?\b/g) || [];
+    score += Math.min(15, numberMatches.length * 5);
+
+    // Reward technical terms (camelCase, snake_case, PascalCase, acronyms, file extensions)
+    const technicalPatterns = text.match(/\b[a-z]+[A-Z][a-zA-Z]*\b|[a-z]+_[a-z]+|\b[A-Z]{2,}\b|\b\w+\.\w{1,5}\b/g) || [];
+    score += Math.min(12, technicalPatterns.length * 3);
+
+    // Reward quoted terms (shows specificity)
+    const quotedTerms = text.match(/[""][^""]+[""]|'[^']+'/g) || [];
+    score += Math.min(8, quotedTerms.length * 4);
+
+    // Reward specific named entities (capitalized multi-word phrases not at sentence start)
+    const namedEntities = text.match(/(?<=[.!?]\s+|,\s+|\band\s+|\bfor\s+|\bin\s+|\busing\s+|\bwith\s+)[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+/g) || [];
+    score += Math.min(10, namedEntities.length * 5);
+
+    // Penalize extremely short prompts (few words = likely vague)
+    if (words.length <= 3) score -= 20;
+    else if (words.length <= 6) score -= 10;
+    else if (words.length <= 10) score -= 5;
+
+    // Reward moderate-to-long prompts that still avoid vagueness
+    if (words.length > 20 && vagueMatches.length <= 1) score += 5;
+
+    return Math.max(0, Math.min(100, score));
+  },
+
+  // ── Clarity Score ─────────────────────────────────────────────────────────
+  // Penalizes run-on sentences, ambiguous pronouns, double negatives, passive voice.
+  _scoreClarity(text) {
+    const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+    if (sentences.length === 0) return 0;
+
+    let score = 60; // Start slightly above neutral
+
+    // Penalize run-on sentences (>30 words)
+    let runOnCount = 0;
+    let shortClearCount = 0;
+    for (const sentence of sentences) {
+      const wordCount = sentence.trim().split(/\s+/).filter(w => w.length > 0).length;
+      if (wordCount > 30) runOnCount++;
+      else if (wordCount >= 5 && wordCount <= 20) shortClearCount++;
+    }
+    score -= runOnCount * 10;
+    score += Math.min(10, shortClearCount * 3);
+
+    // Penalize ambiguous pronouns without clear referents in short prompts
+    const words = text.split(/\s+/).filter(w => w.length > 0);
+    const pronouns = text.match(/\b(it|this|that|these|those|they|them|he|she)\b/gi) || [];
+    if (words.length < 20 && pronouns.length >= 2) {
+      score -= pronouns.length * 5;
+    } else if (pronouns.length > 0) {
+      // In longer text, mild penalty proportional to density
+      const pronounRatio = pronouns.length / words.length;
+      if (pronounRatio > 0.1) score -= Math.round(pronounRatio * 30);
+    }
+
+    // Penalize double negatives
+    const doubleNegatives = text.match(/\b(not|n't|no|never|neither|nor)\b[^.!?]{0,20}\b(not|n't|no|never|neither|none|nothing|nobody|nowhere)\b/gi) || [];
+    score -= doubleNegatives.length * 8;
+
+    // Penalize excessive passive voice
+    const passivePatterns = text.match(/\b(is|are|was|were|be|been|being)\s+(being\s+)?\w+ed\b/gi) || [];
+    score -= Math.min(15, passivePatterns.length * 4);
+
+    // Reward presence of clear punctuation (structured thought)
+    const hasSemicolons = (text.match(/;/g) || []).length;
+    const hasColons = (text.match(/:/g) || []).length;
+    const hasParenthetical = (text.match(/\([^)]+\)/g) || []).length;
+    score += Math.min(8, (hasSemicolons + hasColons + hasParenthetical) * 2);
+
+    // Penalize ALL-CAPS sections (unclear emphasis)
+    const capsWords = text.match(/\b[A-Z]{3,}\b/g) || [];
+    const capsRatio = capsWords.length / Math.max(words.length, 1);
+    if (capsRatio > 0.15) score -= 10;
+
+    // Very short prompts that are single clear sentences get a small bonus
+    if (sentences.length === 1 && words.length >= 5 && words.length <= 25 && runOnCount === 0) {
+      score += 5;
+    }
+
+    return Math.max(0, Math.min(100, score));
+  },
+
+  // ── Structure Score ───────────────────────────────────────────────────────
+  // Rewards organized formatting, penalizes wall-of-text.
+  _scoreStructure(text) {
+    const words = text.split(/\s+/).filter(w => w.length > 0);
+    if (words.length === 0) return 0;
+
+    let score = 40; // Start below neutral — structure must be earned
+
+    const lines = text.split('\n');
+    const nonEmptyLines = lines.filter(l => l.trim().length > 0);
+
+    // Reward numbered lists
+    const numberedItems = (text.match(/(?:^|\n)\s*\d+[.)]\s/gm) || []).length;
+    score += Math.min(20, numberedItems * 6);
+
+    // Reward bullet points
+    const bulletItems = (text.match(/(?:^|\n)\s*[-*•]\s/gm) || []).length;
+    score += Math.min(15, bulletItems * 5);
+
+    // Reward headers (markdown-style)
+    const headers = (text.match(/(?:^|\n)\s*#{1,4}\s/gm) || []).length;
+    score += Math.min(15, headers * 7);
+
+    // Reward paragraph breaks (multiple paragraphs = organized thought)
+    const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim().length > 0);
+    if (paragraphs.length >= 2) score += Math.min(10, paragraphs.length * 3);
+
+    // Reward section-like separators (---  ===  blank lines between topics)
+    const separators = (text.match(/(?:^|\n)\s*[-=]{3,}\s*(?:\n|$)/gm) || []).length;
+    score += Math.min(5, separators * 3);
+
+    // Penalize wall-of-text: long text with no line breaks
+    if (words.length > 40 && nonEmptyLines.length <= 1) {
+      score -= 20;
+    } else if (words.length > 80 && nonEmptyLines.length <= 3) {
+      score -= 15;
+    }
+
+    // Reward logical ordering keywords (suggests deliberate structure)
+    const orderingWords = text.match(/\b(first|second|third|then|next|finally|lastly|step\s*\d+|phase\s*\d+|part\s*\d+)\b/gi) || [];
+    score += Math.min(10, orderingWords.length * 3);
+
+    // Short prompts that are inherently one-liner get a pass (not penalized for no structure)
+    if (words.length <= 15) {
+      // Single-sentence prompts don't need structure; normalize to neutral
+      score = Math.max(score, 40);
+    }
+
+    return Math.max(0, Math.min(100, score));
+  },
+
+  // ── Context Score ─────────────────────────────────────────────────────────
+  // Checks for background info, assumptions, audience, scope.
+  _scoreContext(text) {
+    const words = text.split(/\s+/).filter(w => w.length > 0);
+    if (words.length === 0) return 0;
+
+    let score = 30; // Start low — context must be demonstrated
+
+    const lower = text.toLowerCase();
+
+    // Reward background/context phrases
+    const backgroundPhrases = [
+      /\b(background|context|for context)\b/i,
+      /\b(i am|i'm|we are|we're|our team|my team)\b/i,
+      /\b(currently|right now|at the moment)\b/i,
+      /\b(working on|building|developing|creating|maintaining)\b/i,
+      /\b(project|application|system|codebase|repository|product)\b/i,
+    ];
+    let bgCount = 0;
+    for (const p of backgroundPhrases) {
+      if (p.test(text)) bgCount++;
+    }
+    score += Math.min(20, bgCount * 6);
+
+    // Reward stated assumptions
+    const assumptionPhrases = [
+      /\b(assum(e|ing|ption)|given that|suppose|considering)\b/i,
+      /\b(prerequisite|requirement|constraint|limitation)\b/i,
+    ];
+    for (const p of assumptionPhrases) {
+      if (p.test(text)) score += 5;
+    }
+
+    // Reward target audience specification
+    const audiencePatterns = [
+      /\b(audience|reader|user|beginner|expert|developer|manager|student|client|customer|stakeholder)\b/i,
+      /\b(for\s+(a|an|the)\s+\w+\s+(audience|team|group|person|developer|reader))\b/i,
+      /\b(aimed at|intended for|targeted at|written for)\b/i,
+    ];
+    let audienceFound = false;
+    for (const p of audiencePatterns) {
+      if (p.test(text)) { audienceFound = true; score += 6; break; }
+    }
+
+    // Reward scope definition
+    const scopePatterns = [
+      /\b(scope|focus on|limited to|specifically|in particular|only\s+\w+ing)\b/i,
+      /\b(don't|do not|avoid|exclude|skip|ignore)\b/i,
+      /\b(between\s+\d+\s+and\s+\d+|at least|at most|no more than|up to|maximum|minimum)\b/i,
+    ];
+    for (const p of scopePatterns) {
+      if (p.test(text)) score += 5;
+    }
+
+    // Reward examples being provided
+    const examplePatterns = [
+      /\b(for example|e\.g\.|such as|like\s+this|here'?s?\s+an?\s+example)\b/i,
+      /\b(example|sample|instance|illustration)\b/i,
+    ];
+    for (const p of examplePatterns) {
+      if (p.test(text)) { score += 7; break; }
+    }
+
+    // Penalize pure-instruction-with-zero-context
+    // (starts with imperative verb, short, no background phrases)
+    const startsImperative = /^(write|create|make|build|generate|list|give|explain|tell|show|describe|summarize|fix|find|help|do)\b/i.test(text);
+    if (startsImperative && bgCount === 0 && words.length < 20) {
+      score -= 15;
+    }
+
+    // Reward longer prompts proportionally (more words = more likely context exists)
+    if (words.length > 30) score += 5;
+    if (words.length > 60) score += 5;
+    if (words.length > 100) score += 5;
+
+    return Math.max(0, Math.min(100, score));
+  },
+
+  // ── Actionability Score ───────────────────────────────────────────────────
+  // Checks for clear action verbs, output format, constraints.
+  _scoreActionability(text) {
+    const words = text.split(/\s+/).filter(w => w.length > 0);
+    if (words.length === 0) return 0;
+
+    let score = 35; // Start below neutral
+
+    const lower = text.toLowerCase();
+
+    // Reward clear action verbs
+    const actionVerbs = [
+      /\b(write|create|generate|build|implement|develop|design|draft|compose|produce)\b/i,
+      /\b(explain|describe|summarize|outline|analyze|evaluate|compare|contrast)\b/i,
+      /\b(list|enumerate|identify|categorize|classify|rank|prioritize)\b/i,
+      /\b(convert|translate|transform|reformat|refactor|optimize|migrate)\b/i,
+      /\b(fix|debug|resolve|diagnose|troubleshoot|test|validate|verify)\b/i,
+      /\b(review|critique|assess|audit|check|proofread|edit)\b/i,
+    ];
+    let verbCount = 0;
+    for (const p of actionVerbs) {
+      const matches = text.match(p);
+      if (matches) verbCount += matches.length;
+    }
+    score += Math.min(20, verbCount * 6);
+
+    // Reward output format specification
+    const formatPatterns = [
+      /\b(format|formatted as|in the form of|as a)\b/i,
+      /\b(table|list|bullet|numbered|json|csv|markdown|html|xml|yaml)\b/i,
+      /\b(paragraph|essay|report|email|letter|memo|presentation|slide)\b/i,
+      /\b(code|function|class|module|script|snippet|api|endpoint)\b/i,
+    ];
+    let formatCount = 0;
+    for (const p of formatPatterns) {
+      if (p.test(text)) formatCount++;
+    }
+    score += Math.min(12, formatCount * 4);
+
+    // Reward length/depth hints
+    const depthPatterns = [
+      /\b(brief|concise|short|detailed|comprehensive|thorough|in-depth|high-level|overview)\b/i,
+      /\b(\d+\s*words?|\d+\s*sentences?|\d+\s*paragraphs?|\d+\s*pages?|\d+\s*lines?|\d+\s*items?)\b/i,
+      /\b(at least|at most|no more than|approximately|around|about)\s+\d+/i,
+    ];
+    for (const p of depthPatterns) {
+      if (p.test(text)) { score += 8; break; }
+    }
+
+    // Reward explicit constraints
+    const constraintPatterns = [
+      /\b(must|should|shall|need to|has to|have to|required)\b/i,
+      /\b(don't|do not|never|avoid|exclude|without|except)\b/i,
+      /\b(ensure|make sure|guarantee|always|only)\b/i,
+    ];
+    let constraintCount = 0;
+    for (const p of constraintPatterns) {
+      if (p.test(text)) constraintCount++;
+    }
+    score += Math.min(10, constraintCount * 4);
+
+    // Penalize prompts with no clear ask (no verbs, no question mark)
+    const hasQuestion = /\?/.test(text);
+    if (verbCount === 0 && !hasQuestion) {
+      score -= 20;
+    }
+
+    // Reward question marks (shows a clear ask)
+    if (hasQuestion) score += 5;
+
+    // Reward role/persona assignment
+    if (/\b(act as|you are|pretend|imagine you|role|persona|as a|as an)\b/i.test(text)) {
+      score += 7;
+    }
+
+    return Math.max(0, Math.min(100, score));
+  },
+
+  // ── Suggestion Generator ──────────────────────────────────────────────────
+  // Returns 1-3 targeted suggestions based on the lowest-scoring dimensions.
+  _generateSuggestions(text, scores) {
+    const suggestions = [];
+    const words = text.split(/\s+/).filter(w => w.length > 0);
+
+    // Sort dimensions by score ascending to prioritize the weakest areas
+    const ranked = Object.entries(scores).sort((a, b) => a[1] - b[1]);
+
+    for (const [dimension, dimScore] of ranked) {
+      if (suggestions.length >= 3) break;
+      if (dimScore >= 70) continue; // Don't suggest fixes for strong areas
+
+      switch (dimension) {
+        case 'specificity':
+          if (dimScore < 40) {
+            const vagueWords = text.match(/\b(something|stuff|things?|good|bad|nice|cool|basically|just|really|very)\b/gi);
+            if (vagueWords && vagueWords.length > 0) {
+              const unique = [...new Set(vagueWords.map(w => w.toLowerCase()))].slice(0, 3);
+              suggestions.push(`Replace vague terms (${unique.join(', ')}) with specific nouns, numbers, or named entities.`);
+            } else if (words.length <= 6) {
+              suggestions.push('Add specific details: names, quantities, technical terms, or concrete examples.');
+            } else {
+              suggestions.push('Increase specificity by replacing general language with precise terms and measurable criteria.');
+            }
+          } else {
+            suggestions.push('Add more specific details such as exact numbers, names, or technical terms.');
+          }
+          break;
+
+        case 'clarity':
+          if (text.split(/[.!?]+/).some(s => s.trim().split(/\s+/).length > 30)) {
+            suggestions.push('Break long sentences (30+ words) into shorter, focused statements.');
+          } else if ((text.match(/\b(it|this|that|they)\b/gi) || []).length >= 2 && words.length < 20) {
+            suggestions.push('Replace ambiguous pronouns (it, this, that) with the specific nouns they refer to.');
+          } else {
+            suggestions.push('Use direct, active voice and keep sentences under 25 words for maximum clarity.');
+          }
+          break;
+
+        case 'structure':
+          if (words.length > 40 && text.split('\n').filter(l => l.trim()).length <= 1) {
+            suggestions.push('Break the wall of text into paragraphs, bullet points, or numbered steps.');
+          } else if (words.length > 20) {
+            suggestions.push('Add structure with numbered steps, headers, or bullet points to organize your request.');
+          } else {
+            suggestions.push('For multi-part requests, use a numbered list to separate each requirement.');
+          }
+          break;
+
+        case 'context':
+          if (/^(write|create|make|build|generate|list|give|explain)\b/i.test(text) && words.length < 20) {
+            suggestions.push('Add context: who is the audience, what is the purpose, and what constraints apply?');
+          } else {
+            suggestions.push('Provide background context: state your assumptions, target audience, or project scope.');
+          }
+          break;
+
+        case 'actionability':
+          if (!(text.match(/\b(write|create|explain|analyze|list|build|fix|review|generate|describe|summarize)\b/i))) {
+            suggestions.push('Start with a clear action verb (write, explain, create, analyze) so the AI knows exactly what to produce.');
+          } else {
+            suggestions.push('Specify the desired output format, length, and depth to make the request more actionable.');
+          }
+          break;
+      }
+    }
+
+    // If all scores are high, give a positive note
+    if (suggestions.length === 0) {
+      suggestions.push('This prompt is well-crafted. Consider adding edge cases or constraints for an even stronger result.');
+    }
+
+    return suggestions;
+  },
 };
