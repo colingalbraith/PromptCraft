@@ -14,54 +14,95 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000);
 
+// Clean up session when tab closes
+chrome.tabs.onRemoved.addListener((tabId) => {
+  enhancementSessions.delete(tabId);
+});
+
 // ── Settings ────────────────────────────────────────────────────────────────
 
 async function getSettings() {
-  return new Promise((resolve) => {
-    const keys = Object.values(STORAGE_KEYS).filter(k => !LOCAL_ONLY_KEYS.includes(k));
-    chrome.storage.sync.get(keys, (result) => {
-      if (chrome.runtime.lastError) {
-        console.error('Error loading settings:', chrome.runtime.lastError);
-        resolve({ ...DEFAULT_SETTINGS });
-        return;
-      }
-      resolve({ ...DEFAULT_SETTINGS, ...result });
-    });
-  });
+  const syncKeys = Object.values(STORAGE_KEYS).filter(k => !LOCAL_ONLY_KEYS.includes(k));
+  const localKeys = LOCAL_ONLY_KEYS.filter(k =>
+    k === STORAGE_KEYS.OPENAI_API_KEY || k === STORAGE_KEYS.GEMINI_API_KEY ||
+    k === STORAGE_KEYS.CLAUDE_API_KEY || k === STORAGE_KEYS.CUSTOM_API_KEY ||
+    k === STORAGE_KEYS.DEEP_ANALYSIS || k === STORAGE_KEYS.MULTI_STEP
+  );
+
+  const [syncResult, localResult] = await Promise.all([
+    new Promise(resolve => chrome.storage.sync.get(syncKeys, r => resolve(chrome.runtime.lastError ? {} : r))),
+    new Promise(resolve => chrome.storage.local.get(localKeys, r => resolve(chrome.runtime.lastError ? {} : r)))
+  ]);
+
+  return { ...DEFAULT_SETTINGS, ...syncResult, ...localResult };
 }
 
 async function saveSettings(settings) {
-  return new Promise((resolve, reject) => {
-    const toSave = {};
-    for (const key of Object.values(STORAGE_KEYS)) {
-      if (LOCAL_ONLY_KEYS.includes(key)) continue;
-      if (settings[key] !== undefined) {
-        toSave[key] = settings[key];
-      }
+  const syncData = {};
+  const localData = {};
+
+  for (const key of Object.values(STORAGE_KEYS)) {
+    if (settings[key] === undefined) continue;
+    if (LOCAL_ONLY_KEYS.includes(key)) {
+      localData[key] = settings[key];
+    } else {
+      syncData[key] = settings[key];
     }
-    chrome.storage.sync.set(toSave, () => {
-      if (chrome.runtime.lastError) {
-        reject(chrome.runtime.lastError);
-      } else {
-        resolve();
-      }
-    });
-  });
+  }
+
+  await Promise.all([
+    Object.keys(syncData).length > 0
+      ? new Promise((resolve, reject) => chrome.storage.sync.set(syncData, () => chrome.runtime.lastError ? reject(chrome.runtime.lastError) : resolve()))
+      : Promise.resolve(),
+    Object.keys(localData).length > 0
+      ? new Promise((resolve, reject) => chrome.storage.local.set(localData, () => chrome.runtime.lastError ? reject(chrome.runtime.lastError) : resolve()))
+      : Promise.resolve()
+  ]);
 }
 
 // ── Timeout Helper ──────────────────────────────────────────────────────────
 
 const API_TIMEOUT_MS = 15000;
+const RETRYABLE_STATUSES = [429, 500, 502, 503];
 
 function fetchWithTimeout(url, options) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
   return fetch(url, { ...options, signal: controller.signal })
     .catch(err => {
-      if (err.name === 'AbortError') throw new Error('Request timed out (15s). Check your API key and network.');
+      if (err.name === 'AbortError') throw new Error('Request timed out. Check your network connection and try again.');
       throw err;
     })
     .finally(() => clearTimeout(timer));
+}
+
+function friendlyApiError(status, detail) {
+  switch (status) {
+    case 401: return 'Invalid API key. Check your key in Settings.';
+    case 403: return 'Access denied. Your API key may lack permissions.';
+    case 429: return 'Rate limit hit. Wait a moment and try again.';
+    case 500: case 502: case 503:
+      return 'The AI service is temporarily down. Try again shortly.';
+    case 404: return 'Model not found. Check your model selection in Settings.';
+    default: return `API error (${status}): ${(detail || '').substring(0, 150)}`;
+  }
+}
+
+async function fetchWithRetry(url, options) {
+  try {
+    const response = await fetchWithTimeout(url, options);
+    if (!response.ok && RETRYABLE_STATUSES.includes(response.status)) {
+      await new Promise(r => setTimeout(r, 2000));
+      return await fetchWithTimeout(url, options);
+    }
+    return response;
+  } catch (err) {
+    if (err.message.includes('timed out')) {
+      await new Promise(r => setTimeout(r, 2000));
+      return await fetchWithTimeout(url, options);
+    }
+    throw err;
+  }
 }
 
 // ── Providers ───────────────────────────────────────────────────────────────
@@ -75,7 +116,7 @@ async function callGemini(prompt, settings, config) {
   const model = settings[STORAGE_KEYS.GEMINI_MODEL] || DEFAULT_SETTINGS[STORAGE_KEYS.GEMINI_MODEL];
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-  const response = await fetchWithTimeout(endpoint, {
+  const response = await fetchWithRetry(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -92,13 +133,8 @@ async function callGemini(prompt, settings, config) {
 
   if (!response.ok) {
     let detail = '';
-    try {
-      const errJson = await response.json();
-      detail = errJson?.error?.message || JSON.stringify(errJson);
-    } catch {
-      detail = await response.text();
-    }
-    throw new Error(`Gemini API error (${response.status}): ${detail.substring(0, 200)}`);
+    try { detail = (await response.json())?.error?.message || ''; } catch { detail = await response.text(); }
+    throw new Error(friendlyApiError(response.status, detail));
   }
 
   const data = await response.json();
@@ -209,6 +245,9 @@ async function callCustom(prompt, settings, config) {
 
   if (!endpoint) {
     throw new Error('Custom endpoint not set. Please configure it in Settings (e.g., https://api.groq.com/openai/v1).');
+  }
+  if (!/^https?:\/\/.+/.test(endpoint)) {
+    throw new Error('Custom endpoint must start with http:// or https://');
   }
   if (!model) {
     throw new Error('Custom model not set. Please enter a model name in Settings.');
@@ -437,9 +476,10 @@ function buildContextBlock(context, tabId) {
     }
   }
 
-  // Conversation context from the AI chat page
+  // Conversation context from the AI chat page (capped at 6000 chars / ~1500 tokens)
   if (context && context.conversation) {
-    block += `\nConversation context (the user is chatting on ${context.platform || 'an AI assistant'}, ${context.messageCount || '?'} messages):\n---\n${context.conversation}\n---\nUse this conversation to understand what has already been discussed. Make the enhanced prompt aware of and build on this context.\n`;
+    const convo = context.conversation.length > 6000 ? context.conversation.substring(0, 6000) + '\n[...truncated]' : context.conversation;
+    block += `\nConversation context (the user is chatting on ${context.platform || 'an AI assistant'}, ${context.messageCount || '?'} messages):\n---\n${convo}\n---\nUse this conversation to understand what has already been discussed. Make the enhanced prompt aware of and build on this context.\n`;
   }
 
   // Previous enhancement session memory
@@ -510,9 +550,13 @@ async function callProvider(prompt, modifier, settings, context, tabId) {
   // Build score hints for the AI so it knows how much work is needed
   const scoreHints = _buildScoreHints(preScore);
 
-  // Deep analysis (LLM-powered) if enabled
+  // Deep analysis (LLM-powered) — skip for short/clear prompts to save API calls
   let deepHints = '';
-  if (settings[STORAGE_KEYS.DEEP_ANALYSIS]) {
+  const wordCount = prompt.split(/\s+/).length;
+  const needsDeepAnalysis = settings[STORAGE_KEYS.DEEP_ANALYSIS]
+    && (wordCount > 30 || analysis.signals.quality.issues.length > 1 || analysis.signals.complexity.level !== 'simple');
+
+  if (needsDeepAnalysis) {
     const analysisConfig = { temperature: 0.2, maxTokens: 2000 };
     const callerFn = async (text, systemPrompt) => {
       // Use the same provider but with the analysis system prompt
@@ -980,6 +1024,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (action === 'enhance') {
     (async () => {
       try {
+        // Input validation
+        if (!message.prompt || message.prompt.trim().length === 0) {
+          sendResponse({ success: false, error: 'No text to enhance. Type something first.' });
+          return;
+        }
+        if (message.prompt.length > 10000) {
+          sendResponse({ success: false, error: 'Prompt too long (10,000 char limit). Try shortening it.' });
+          return;
+        }
+
         const settings = await getSettings();
 
         let context = message.context || null;
