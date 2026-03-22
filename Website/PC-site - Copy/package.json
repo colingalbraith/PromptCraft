@@ -1,0 +1,54 @@
+{
+  "name": "promptcraft-website",
+  "version": "1.0.0",
+  "description": "PromptCraft - Transform Your Prompts Instantly",
+  "main": "index.html",
+  "scripts": {
+    "dev": "npx live-server --port=3000 --open=/",
+    "build": "npm run minify:css && npm run minify:js",
+    "minify:css": "npx cleancss-cli css/styles.css -o css/styles.min.css",
+    "minify:js": "npx uglify-js js/main.js -c -m -o js/main.min.js",
+    "lint:css": "npx stylelint css/*.css",
+    "lint:js": "npx eslint js/*.js",
+    "format": "npx prettier --write \"**/*.{html,css,js,json,md}\"",
+    "validate:html": "npx html-validate index.html",
+    "lighthouse": "npx lighthouse http://localhost:3000 --output html --output-path ./lighthouse-report.html",
+    "test": "npm run lint:css && npm run lint:js && npm run validate:html"
+  },
+  "keywords": [
+    "ai",
+    "prompts",
+    "chatgpt",
+    "claude",
+    "gemini",
+    "prompt-engineering",
+    "website",
+    "landing-page"
+  ],
+  "author": "PromptCraft Team",
+  "license": "MIT",
+  "devDependencies": {
+    "clean-css-cli": "^5.6.2",
+    "eslint": "^8.56.0",
+    "html-validate": "^8.9.1",
+    "lighthouse": "^11.4.0",
+    "live-server": "^1.2.2",
+    "prettier": "^3.1.1",
+    "stylelint": "^16.1.0",
+    "stylelint-config-standard": "^36.0.0",
+    "uglify-js": "^3.17.4"
+  },
+  "browserslist": [
+    "> 1%",
+    "last 2 versions",
+    "not dead"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/colingalbraith/PromptCraft"
+  },
+  "bugs": {
+    "url": "https://github.com/colingalbraith/PromptCraft/issues"
+  },
+  "homepage": "https://promptcraft.com"
+}

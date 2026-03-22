@@ -1,0 +1,23 @@
+{
+  "extends": ["stylelint-config-standard"],
+  "rules": {
+    "color-hex-case": "lower",
+    "color-hex-length": "short",
+    "declaration-block-trailing-semicolon": "always",
+    "indentation": 4,
+    "max-nesting-depth": 3,
+    "no-duplicate-selectors": true,
+    "no-empty-source": null,
+    "property-no-unknown": [
+      true,
+      {
+        "ignoreProperties": [
+          "scroll-timeline",
+          "scroll-timeline-name",
+          "scroll-timeline-axis"
+        ]
+      }
+    ]
+  },
+  "ignoreFiles": ["**/*.min.css"]
+}
