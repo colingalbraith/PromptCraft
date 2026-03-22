@@ -29,6 +29,14 @@
         <div class="header anim-item">
           <img src="icon.png" class="logo" alt="PromptCraft">
           <h1>PromptCraft</h1>
+          <button id="templates-btn" class="icon-btn" title="Templates">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+              <rect x="3" y="3" width="7" height="7" rx="1"></rect>
+              <rect x="14" y="3" width="7" height="7" rx="1"></rect>
+              <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+              <rect x="14" y="14" width="7" height="7" rx="1"></rect>
+            </svg>
+          </button>
           <button id="history-btn" class="icon-btn" title="History">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
               <circle cx="12" cy="12" r="10"></circle>
@@ -102,9 +110,28 @@
           <div id="context-modal-content" class="context-modal-content"></div>
         </div>
 
-        <div id="provider-status" class="provider-status anim-item">
-          <span class="provider-status-dot"></span>
-          <span id="provider-status-text">Loading...</span>
+        <div class="main-footer anim-item">
+          <div id="provider-status" class="provider-status">
+            <span class="provider-status-dot"></span>
+            <span id="provider-status-text">Loading...</span>
+          </div>
+          <button id="templates-footer-btn" class="usage-indicator" title="Browse templates">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+              <rect x="3" y="3" width="7" height="7" rx="1"></rect>
+              <rect x="14" y="3" width="7" height="7" rx="1"></rect>
+              <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+              <rect x="14" y="14" width="7" height="7" rx="1"></rect>
+            </svg>
+            <span>Templates</span>
+          </button>
+          <button id="usage-btn" class="usage-indicator" title="View usage stats">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+              <path d="M18 20V10"></path>
+              <path d="M12 20V4"></path>
+              <path d="M6 20v-6"></path>
+            </svg>
+            <span id="usage-indicator-text">0 enhancements</span>
+          </button>
         </div>
       </div>
 
@@ -260,6 +287,107 @@
         </div>
         <div id="history-list" class="history-list"></div>
       </div>
+      <!-- ─── Usage Page ─── -->
+      <div id="usage-page" class="page">
+        <div class="header">
+          <button id="back-from-usage" class="icon-btn" title="Back">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+          </button>
+          <h1>Usage</h1>
+          <span id="usage-period" class="history-count"></span>
+        </div>
+
+        <div class="usage-stat-cards">
+          <div class="usage-stat-card">
+            <span class="usage-stat-value" id="usage-total-enhancements">0</span>
+            <span class="usage-stat-label">Enhancements</span>
+          </div>
+          <div class="usage-stat-card">
+            <span class="usage-stat-value" id="usage-total-cost">$0.00</span>
+            <span class="usage-stat-label">Estimated Cost</span>
+          </div>
+          <div class="usage-stat-card">
+            <span class="usage-stat-value" id="usage-total-tokens">0</span>
+            <span class="usage-stat-label">Tokens Used</span>
+          </div>
+        </div>
+
+        <div class="usage-score-section">
+          <label class="section-label">Prompt Scoring</label>
+          <div class="usage-score-cards">
+            <div class="usage-score-card">
+              <span class="usage-score-value" id="usage-avg-pre">--</span>
+              <span class="usage-score-label">Avg Pre-Score</span>
+            </div>
+            <div class="usage-score-card accent">
+              <span class="usage-score-value" id="usage-avg-improvement">--</span>
+              <span class="usage-score-label">Avg Improvement</span>
+            </div>
+            <div class="usage-score-card">
+              <span class="usage-score-value" id="usage-avg-post">--</span>
+              <span class="usage-score-label">Avg Post-Score</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="usage-breakdown-section">
+          <label class="section-label">Model Breakdown</label>
+          <div id="usage-model-list" class="usage-model-list">
+            <div class="usage-empty">No usage data yet.</div>
+          </div>
+        </div>
+
+        <button id="reset-usage-btn" class="usage-reset-btn">Reset Stats</button>
+      </div>
+
+      <!-- ─── Templates Page ─── -->
+      <div id="templates-page" class="page">
+        <div class="header">
+          <button id="back-from-templates" class="icon-btn" title="Back">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+          </button>
+          <h1>Templates</h1>
+        </div>
+        <div id="template-category-tabs" class="template-category-tabs">
+          <!-- Populated by JS -->
+        </div>
+        <div id="template-grid" class="template-grid">
+          <!-- Populated by JS -->
+        </div>
+        <!-- Template detail / fill-in view (hidden by default) -->
+        <div id="template-detail" class="template-detail hidden">
+          <div class="template-detail-header">
+            <button id="back-from-template-detail" class="icon-btn" title="Back to templates">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                <polyline points="15 18 9 12 15 6"></polyline>
+              </svg>
+            </button>
+            <span id="template-detail-icon" class="template-detail-icon"></span>
+            <span id="template-detail-name" class="template-detail-name"></span>
+          </div>
+          <p id="template-detail-desc" class="template-detail-desc"></p>
+          <div id="template-variables" class="template-variables">
+            <!-- Variable fields populated by JS -->
+          </div>
+          <div id="template-input-group" class="input-group template-input-group">
+            <label for="template-input-area">Content</label>
+            <textarea id="template-input-area" placeholder="Paste your text or code here..."></textarea>
+          </div>
+          <div id="template-preview" class="template-preview">
+            <label class="template-preview-label">Preview</label>
+            <div id="template-preview-text" class="template-preview-text"></div>
+          </div>
+          <button id="use-template-btn" class="primary-btn">
+            <span class="btn-text">Use Template</span>
+            <span class="btn-shimmer"></span>
+          </button>
+        </div>
+      </div>
+
       <!-- ─── Onboarding Page ─── -->
       <div id="onboarding-page" class="page">
         <div class="onboarding-content">

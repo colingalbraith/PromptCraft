@@ -15,6 +15,401 @@
   let undoState = null;
   const streamState = { active: false, text: '', el: null };
 
+  // ── Word-level Diff (LCS-based) ──────────────────────────────────────────
+
+  /**
+   * Tokenize text into word tokens preserving whitespace runs.
+   * Returns an array of tokens where each token is either a word
+   * (including attached punctuation) or a whitespace run.
+   */
+  function diffTokenize(text) {
+    const tokens = [];
+    const re = /(\S+|\s+)/g;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      tokens.push(m[0]);
+    }
+    return tokens;
+  }
+
+  /**
+   * LCS (Longest Common Subsequence) on two token arrays.
+   * Returns the LCS length table for back-tracking.
+   */
+  function lcsTable(a, b) {
+    const m = a.length;
+    const n = b.length;
+    // Use flat arrays for performance on large texts
+    const dp = new Uint16Array((m + 1) * (n + 1));
+    const w = n + 1;
+    for (let i = 1; i <= m; i++) {
+      for (let j = 1; j <= n; j++) {
+        if (a[i - 1] === b[j - 1]) {
+          dp[i * w + j] = dp[(i - 1) * w + (j - 1)] + 1;
+        } else {
+          dp[i * w + j] = Math.max(dp[(i - 1) * w + j], dp[i * w + (j - 1)]);
+        }
+      }
+    }
+    return { dp, w, m, n };
+  }
+
+  /**
+   * Back-track the LCS table to produce a diff.
+   * Returns array of { type: 'equal'|'removed'|'added', value: string }
+   */
+  function computeDiff(original, enhanced) {
+    const a = diffTokenize(original);
+    const b = diffTokenize(enhanced);
+    const { dp, w, m, n } = lcsTable(a, b);
+
+    // Back-track
+    const ops = [];
+    let i = m, j = n;
+    while (i > 0 || j > 0) {
+      if (i > 0 && j > 0 && a[i - 1] === b[j - 1]) {
+        ops.push({ type: 'equal', value: a[i - 1] });
+        i--; j--;
+      } else if (j > 0 && (i === 0 || dp[i * w + (j - 1)] >= dp[(i - 1) * w + j])) {
+        ops.push({ type: 'added', value: b[j - 1] });
+        j--;
+      } else {
+        ops.push({ type: 'removed', value: a[i - 1] });
+        i--;
+      }
+    }
+    ops.reverse();
+    return ops;
+  }
+
+  // ── Diff Overlay ──────────────────────────────────────────────────────────
+
+  function removeDiffOverlay() {
+    const existing = document.getElementById('promptcraft-diff-overlay');
+    if (existing) existing.remove();
+  }
+
+  function showDiffOverlay(originalText, enhancedText) {
+    removeDiffOverlay();
+
+    const diff = computeDiff(originalText, enhancedText);
+
+    // Build highlighted HTML for original side (shows equal + removed)
+    let origHTML = '';
+    let enhHTML = '';
+    for (const op of diff) {
+      const escaped = op.value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      // Preserve whitespace rendering
+      const display = escaped.replace(/ /g, '&nbsp;').replace(/\n/g, '<br>');
+      if (op.type === 'equal') {
+        origHTML += `<span>${display}</span>`;
+        enhHTML += `<span>${display}</span>`;
+      } else if (op.type === 'removed') {
+        origHTML += `<span style="background:rgba(239,68,68,0.18);color:#f87171;text-decoration:line-through;text-decoration-color:rgba(248,113,113,0.6);border-radius:2px;padding:1px 0;">${display}</span>`;
+      } else if (op.type === 'added') {
+        enhHTML += `<span style="background:rgba(34,197,94,0.18);color:#4ade80;border-radius:2px;padding:1px 0;">${display}</span>`;
+      }
+    }
+
+    // Create overlay
+    const overlay = document.createElement('div');
+    overlay.id = 'promptcraft-diff-overlay';
+    Object.assign(overlay.style, {
+      position: 'fixed',
+      top: '0',
+      left: '0',
+      width: '100vw',
+      height: '100vh',
+      background: 'rgba(0, 0, 0, 0.6)',
+      backdropFilter: 'blur(4px)',
+      zIndex: '2147483647',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontFamily: 'system-ui, -apple-system, sans-serif',
+      padding: '20px',
+      boxSizing: 'border-box',
+    });
+
+    // Click backdrop to close
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) removeDiffOverlay();
+    });
+
+    // Modal card
+    const modal = document.createElement('div');
+    Object.assign(modal.style, {
+      background: '#1a1a2e',
+      borderRadius: '16px',
+      boxShadow: '0 24px 80px rgba(0, 0, 0, 0.5)',
+      border: '1px solid rgba(255, 255, 255, 0.1)',
+      width: '100%',
+      maxWidth: '900px',
+      maxHeight: '85vh',
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden',
+      animation: 'promptcraft-diff-in 0.25s ease-out',
+    });
+
+    // Inject animation keyframe
+    if (!document.getElementById('promptcraft-diff-styles')) {
+      const s = document.createElement('style');
+      s.id = 'promptcraft-diff-styles';
+      s.textContent = `
+        @keyframes promptcraft-diff-in {
+          from { opacity: 0; transform: scale(0.95) translateY(10px); }
+          to   { opacity: 1; transform: scale(1) translateY(0); }
+        }
+      `;
+      document.head.appendChild(s);
+    }
+
+    // Header
+    const header = document.createElement('div');
+    Object.assign(header.style, {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: '16px 20px',
+      borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+      flexShrink: '0',
+    });
+
+    const titleArea = document.createElement('div');
+    titleArea.style.display = 'flex';
+    titleArea.style.alignItems = 'center';
+    titleArea.style.gap = '10px';
+
+    const titleText = document.createElement('span');
+    titleText.textContent = 'Original';
+    Object.assign(titleText.style, {
+      fontSize: '14px',
+      fontWeight: '600',
+      color: 'rgba(255, 255, 255, 0.9)',
+    });
+
+    const arrow = document.createElement('span');
+    arrow.innerHTML = '&#8594;';
+    Object.assign(arrow.style, {
+      fontSize: '16px',
+      color: '#F5C842',
+      fontWeight: '700',
+    });
+
+    const enhTitle = document.createElement('span');
+    enhTitle.textContent = 'Enhanced';
+    Object.assign(enhTitle.style, {
+      fontSize: '14px',
+      fontWeight: '600',
+      color: 'rgba(255, 255, 255, 0.9)',
+    });
+
+    titleArea.appendChild(titleText);
+    titleArea.appendChild(arrow);
+    titleArea.appendChild(enhTitle);
+
+    const headerBtns = document.createElement('div');
+    headerBtns.style.display = 'flex';
+    headerBtns.style.alignItems = 'center';
+    headerBtns.style.gap = '8px';
+
+    // Copy Enhanced button
+    const copyBtn = document.createElement('button');
+    copyBtn.textContent = 'Copy Enhanced';
+    Object.assign(copyBtn.style, {
+      background: 'rgba(245, 200, 66, 0.15)',
+      color: '#F5C842',
+      border: '1px solid rgba(245, 200, 66, 0.3)',
+      borderRadius: '6px',
+      padding: '5px 12px',
+      fontSize: '12px',
+      fontWeight: '600',
+      cursor: 'pointer',
+      transition: 'background 0.15s ease',
+    });
+    copyBtn.addEventListener('mouseenter', () => {
+      copyBtn.style.background = 'rgba(245, 200, 66, 0.25)';
+    });
+    copyBtn.addEventListener('mouseleave', () => {
+      copyBtn.style.background = 'rgba(245, 200, 66, 0.15)';
+    });
+    copyBtn.addEventListener('click', () => {
+      navigator.clipboard.writeText(enhancedText).then(() => {
+        copyBtn.textContent = 'Copied!';
+        setTimeout(() => { copyBtn.textContent = 'Copy Enhanced'; }, 1500);
+      });
+    });
+
+    // Close button
+    const closeBtn = document.createElement('button');
+    closeBtn.innerHTML = '&#10005;';
+    Object.assign(closeBtn.style, {
+      background: 'rgba(255, 255, 255, 0.08)',
+      color: 'rgba(255, 255, 255, 0.7)',
+      border: 'none',
+      borderRadius: '6px',
+      width: '28px',
+      height: '28px',
+      fontSize: '14px',
+      cursor: 'pointer',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      transition: 'background 0.15s ease',
+    });
+    closeBtn.addEventListener('mouseenter', () => {
+      closeBtn.style.background = 'rgba(255, 255, 255, 0.15)';
+    });
+    closeBtn.addEventListener('mouseleave', () => {
+      closeBtn.style.background = 'rgba(255, 255, 255, 0.08)';
+    });
+    closeBtn.addEventListener('click', removeDiffOverlay);
+
+    headerBtns.appendChild(copyBtn);
+    headerBtns.appendChild(closeBtn);
+    header.appendChild(titleArea);
+    header.appendChild(headerBtns);
+
+    // Body — two-column diff
+    const body = document.createElement('div');
+    Object.assign(body.style, {
+      display: 'flex',
+      flex: '1',
+      overflow: 'hidden',
+      minHeight: '0',
+    });
+
+    // Left pane (original)
+    const leftPane = document.createElement('div');
+    Object.assign(leftPane.style, {
+      flex: '1',
+      padding: '16px 20px',
+      overflowY: 'auto',
+      borderRight: '1px solid rgba(255, 255, 255, 0.06)',
+    });
+
+    const leftLabel = document.createElement('div');
+    Object.assign(leftLabel.style, {
+      fontSize: '10px',
+      fontWeight: '700',
+      textTransform: 'uppercase',
+      letterSpacing: '0.5px',
+      color: 'rgba(248, 113, 113, 0.8)',
+      marginBottom: '10px',
+    });
+    leftLabel.textContent = 'Original';
+
+    const leftContent = document.createElement('div');
+    Object.assign(leftContent.style, {
+      fontSize: '13px',
+      lineHeight: '1.7',
+      color: 'rgba(255, 255, 255, 0.85)',
+      whiteSpace: 'pre-wrap',
+      wordBreak: 'break-word',
+    });
+    leftContent.innerHTML = origHTML;
+
+    leftPane.appendChild(leftLabel);
+    leftPane.appendChild(leftContent);
+
+    // Right pane (enhanced)
+    const rightPane = document.createElement('div');
+    Object.assign(rightPane.style, {
+      flex: '1',
+      padding: '16px 20px',
+      overflowY: 'auto',
+    });
+
+    const rightLabel = document.createElement('div');
+    Object.assign(rightLabel.style, {
+      fontSize: '10px',
+      fontWeight: '700',
+      textTransform: 'uppercase',
+      letterSpacing: '0.5px',
+      color: 'rgba(74, 222, 128, 0.8)',
+      marginBottom: '10px',
+    });
+    rightLabel.textContent = 'Enhanced';
+
+    const rightContent = document.createElement('div');
+    Object.assign(rightContent.style, {
+      fontSize: '13px',
+      lineHeight: '1.7',
+      color: 'rgba(255, 255, 255, 0.85)',
+      whiteSpace: 'pre-wrap',
+      wordBreak: 'break-word',
+    });
+    rightContent.innerHTML = enhHTML;
+
+    rightPane.appendChild(rightLabel);
+    rightPane.appendChild(rightContent);
+
+    body.appendChild(leftPane);
+    body.appendChild(rightPane);
+
+    // Legend bar at bottom
+    const legend = document.createElement('div');
+    Object.assign(legend.style, {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '20px',
+      padding: '10px 20px',
+      borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+      flexShrink: '0',
+    });
+
+    const makeLegendItem = (color, label) => {
+      const item = document.createElement('div');
+      item.style.display = 'flex';
+      item.style.alignItems = 'center';
+      item.style.gap = '6px';
+
+      const swatch = document.createElement('span');
+      Object.assign(swatch.style, {
+        display: 'inline-block',
+        width: '12px',
+        height: '12px',
+        borderRadius: '3px',
+        background: color,
+      });
+
+      const txt = document.createElement('span');
+      Object.assign(txt.style, {
+        fontSize: '11px',
+        color: 'rgba(255, 255, 255, 0.5)',
+      });
+      txt.textContent = label;
+
+      item.appendChild(swatch);
+      item.appendChild(txt);
+      return item;
+    };
+
+    legend.appendChild(makeLegendItem('rgba(239, 68, 68, 0.25)', 'Removed'));
+    legend.appendChild(makeLegendItem('rgba(34, 197, 94, 0.25)', 'Added'));
+    legend.appendChild(makeLegendItem('transparent', 'Unchanged'));
+
+    modal.appendChild(header);
+    modal.appendChild(body);
+    modal.appendChild(legend);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    // ESC to close
+    const escHandler = (e) => {
+      if (e.key === 'Escape') {
+        removeDiffOverlay();
+        document.removeEventListener('keydown', escHandler, true);
+      }
+    };
+    document.addEventListener('keydown', escHandler, true);
+  }
+
   // Helper to clear an input element
   function clearInput(el) {
     if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
@@ -532,7 +927,7 @@
     }, duration);
   }
 
-  // Toast with an undo button
+  // Toast with undo + view changes buttons
   function showUndoToast() {
     document.querySelectorAll('.promptcraft-toast').forEach(t => t.remove());
 
@@ -554,27 +949,46 @@
       opacity: '0',
       transform: 'translateY(10px)',
       transition: 'opacity 0.3s ease, transform 0.3s ease',
-      maxWidth: '340px',
+      maxWidth: '400px',
       display: 'flex',
       alignItems: 'center',
-      gap: '12px',
+      gap: '10px',
     });
 
     const label = document.createElement('span');
     label.textContent = 'Prompt enhanced!';
 
-    const undoBtn = document.createElement('button');
-    undoBtn.textContent = 'Undo';
-    Object.assign(undoBtn.style, {
-      background: 'rgba(245, 200, 66, 0.2)',
-      color: '#F5C842',
-      border: '1px solid rgba(245, 200, 66, 0.4)',
+    const btnStyle = {
       borderRadius: '4px',
       padding: '3px 10px',
       fontSize: '12px',
       fontWeight: '600',
       cursor: 'pointer',
       flexShrink: '0',
+      border: '1px solid',
+    };
+
+    const diffBtn = document.createElement('button');
+    diffBtn.textContent = 'View changes';
+    Object.assign(diffBtn.style, {
+      ...btnStyle,
+      background: 'rgba(232, 98, 30, 0.2)',
+      color: '#E8621E',
+      borderColor: 'rgba(232, 98, 30, 0.4)',
+    });
+    diffBtn.addEventListener('click', () => {
+      if (undoState && undoState.enhanced) {
+        showDiffOverlay(undoState.text, undoState.enhanced);
+      }
+    });
+
+    const undoBtn = document.createElement('button');
+    undoBtn.textContent = 'Undo';
+    Object.assign(undoBtn.style, {
+      ...btnStyle,
+      background: 'rgba(245, 200, 66, 0.2)',
+      color: '#F5C842',
+      borderColor: 'rgba(245, 200, 66, 0.4)',
     });
     undoBtn.addEventListener('click', () => {
       handleUndo();
@@ -582,6 +996,7 @@
     });
 
     toast.appendChild(label);
+    toast.appendChild(diffBtn);
     toast.appendChild(undoBtn);
     document.body.appendChild(toast);
 
@@ -945,6 +1360,8 @@
           }
 
           if (response && response.success && response.text) {
+            // Store enhanced text for diff view
+            undoState.enhanced = response.text;
             setTextAnimated(inputEl, response.text).then(() => {
               showUndoToast();
             }).catch((err) => {

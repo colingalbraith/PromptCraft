@@ -901,6 +901,62 @@ async function trackUsage(model, inputText, outputText, deepAnalysisUsed) {
   chrome.storage.local.set({ [STORAGE_KEYS.USAGE_STATS]: stats });
 }
 
+// ── Tier System ─────────────────────────────────────────────────────────────
+
+async function getUserTier() {
+  return new Promise(resolve => {
+    chrome.storage.local.get([STORAGE_KEYS.TIER, STORAGE_KEYS.LICENSE_KEY], result => {
+      resolve(result[STORAGE_KEYS.TIER] || TIERS.FREE);
+    });
+  });
+}
+
+async function getDailyCount() {
+  return new Promise(resolve => {
+    chrome.storage.local.get([STORAGE_KEYS.DAILY_COUNT, STORAGE_KEYS.DAILY_RESET], result => {
+      const today = new Date().toDateString();
+      const resetDate = result[STORAGE_KEYS.DAILY_RESET];
+
+      // Reset count if it's a new day
+      if (resetDate !== today) {
+        chrome.storage.local.set({
+          [STORAGE_KEYS.DAILY_COUNT]: 0,
+          [STORAGE_KEYS.DAILY_RESET]: today
+        });
+        resolve(0);
+      } else {
+        resolve(result[STORAGE_KEYS.DAILY_COUNT] || 0);
+      }
+    });
+  });
+}
+
+async function incrementDailyCount() {
+  const count = await getDailyCount();
+  chrome.storage.local.set({ [STORAGE_KEYS.DAILY_COUNT]: count + 1 });
+  return count + 1;
+}
+
+async function checkTierLimit(settings) {
+  const tier = await getUserTier();
+  const limits = TIER_LIMITS[tier];
+
+  if (limits.dailyEnhancements === Infinity) {
+    return { allowed: true };
+  }
+
+  const count = await getDailyCount();
+  if (count >= limits.dailyEnhancements) {
+    return {
+      allowed: false,
+      message: `Daily limit reached (${limits.dailyEnhancements} enhancements/day on Free tier). Upgrade to Pro for unlimited enhancements.`,
+      remaining: 0
+    };
+  }
+
+  return { allowed: true, remaining: limits.dailyEnhancements - count };
+}
+
 // ── Undo Learning ───────────────────────────────────────────────────────────
 
 async function getUndoStats() {
@@ -1036,6 +1092,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         const settings = await getSettings();
 
+        // Tier enforcement
+        const tierCheck = await checkTierLimit(settings);
+        if (!tierCheck.allowed) {
+          sendResponse({ success: false, error: tierCheck.message, tierLimited: true });
+          return;
+        }
+
         let context = message.context || null;
         let tabId = sender?.tab?.id || null;
 
@@ -1048,6 +1111,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               if (tab?.id) tabId = tab.id;
             } catch {}
           }
+        }
+
+        // Enforce tier limits on premium features
+        const currentTier = await getUserTier();
+        const tierLimits = TIER_LIMITS[currentTier];
+        if (!tierLimits.multiStep) settings[STORAGE_KEYS.MULTI_STEP] = false;
+        if (!tierLimits.deepAnalysis) settings[STORAGE_KEYS.DEEP_ANALYSIS] = false;
+        if (!tierLimits.customEndpoints && settings[STORAGE_KEYS.API_PROVIDER] === API_PROVIDERS.CUSTOM) {
+          sendResponse({ success: false, error: 'Custom endpoints are a Pro feature. Upgrade to use custom API providers.', tierLimited: true });
+          return;
         }
 
         // Try streaming for supported providers (non-multi-step, non-Ollama, non-Claude)
@@ -1127,6 +1200,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         // Record enhancement for undo learning
         await recordEnhancement(message.modifier || 'short', context?.platform || null);
 
+        // Increment daily count for tier tracking
+        const newCount = await incrementDailyCount();
+        const tier = await getUserTier();
+        const remaining = TIER_LIMITS[tier].dailyEnhancements === Infinity ? null : TIER_LIMITS[tier].dailyEnhancements - newCount;
+
         // Track token usage and cost
         const activeModel = settings[STORAGE_KEYS.PROVIDER] === PROVIDERS.OLLAMA
           ? settings[STORAGE_KEYS.OLLAMA_MODEL]
@@ -1137,6 +1215,42 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       } catch (err) {
         sendResponse({ success: false, error: err.message });
       }
+    })();
+    return true;
+  }
+
+  // Tier info
+  if (action === 'getTierInfo') {
+    (async () => {
+      const tier = await getUserTier();
+      const count = await getDailyCount();
+      const limits = TIER_LIMITS[tier];
+      sendResponse({
+        success: true,
+        tier,
+        dailyCount: count,
+        dailyLimit: limits.dailyEnhancements,
+        remaining: limits.dailyEnhancements === Infinity ? null : limits.dailyEnhancements - count,
+        features: limits
+      });
+    })();
+    return true;
+  }
+
+  if (action === 'activatePro') {
+    (async () => {
+      // For now, validate license key format (will connect to backend later)
+      const key = message.licenseKey;
+      if (!key || key.trim().length < 8) {
+        sendResponse({ success: false, error: 'Invalid license key.' });
+        return;
+      }
+      chrome.storage.local.set({
+        [STORAGE_KEYS.LICENSE_KEY]: key.trim(),
+        [STORAGE_KEYS.TIER]: TIERS.PRO
+      }, () => {
+        sendResponse({ success: true, tier: TIERS.PRO });
+      });
     })();
     return true;
   }

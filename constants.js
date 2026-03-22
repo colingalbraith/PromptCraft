@@ -232,7 +232,11 @@ const STORAGE_KEYS = {
   DEEP_ANALYSIS: 'deepAnalysis',
   UNDO_STATS: 'undoStats',
   USAGE_STATS: 'usageStats',
-  MULTI_STEP: 'multiStep'
+  MULTI_STEP: 'multiStep',
+  LICENSE_KEY: 'licenseKey',
+  TIER: 'tier',
+  DAILY_COUNT: 'dailyCount',
+  DAILY_RESET: 'dailyReset'
 };
 
 // Keys stored in chrome.storage.local (not sync)
@@ -241,7 +245,9 @@ const LOCAL_ONLY_KEYS = [
   STORAGE_KEYS.HISTORY, STORAGE_KEYS.CUSTOM_PRESETS, STORAGE_KEYS.PRESET_OVERRIDES,
   STORAGE_KEYS.ONBOARDING_COMPLETE, STORAGE_KEYS.UNDO_STATS, STORAGE_KEYS.USAGE_STATS,
   // API keys — never sync across devices
-  STORAGE_KEYS.OPENAI_API_KEY, STORAGE_KEYS.GEMINI_API_KEY, STORAGE_KEYS.CLAUDE_API_KEY, STORAGE_KEYS.CUSTOM_API_KEY
+  STORAGE_KEYS.OPENAI_API_KEY, STORAGE_KEYS.GEMINI_API_KEY, STORAGE_KEYS.CLAUDE_API_KEY, STORAGE_KEYS.CUSTOM_API_KEY,
+  // Tier and usage tracking
+  STORAGE_KEYS.LICENSE_KEY, STORAGE_KEYS.TIER, STORAGE_KEYS.DAILY_COUNT, STORAGE_KEYS.DAILY_RESET
 ];
 
 const DEFAULT_SETTINGS = {
@@ -297,6 +303,169 @@ const API_STORAGE_MAP = {
 };
 
 const MAX_HISTORY = 100;
+
+// ── Prompt Templates (quick-start templates for common use cases) ────────────
+const PROMPT_TEMPLATES = [
+  {
+    id: 'debug-code',
+    name: 'Debug This Code',
+    icon: '\uD83D\uDC1B',
+    category: 'coding',
+    description: 'Find and fix bugs in your code',
+    template: 'Debug the following code. Identify the bug(s), explain why they occur, and provide the corrected version with comments.\n\n```\n{{input}}\n```',
+    variables: []
+  },
+  {
+    id: 'review-code',
+    name: 'Review This Code',
+    icon: '\uD83D\uDD0D',
+    category: 'coding',
+    description: 'Get a thorough code review with suggestions',
+    template: 'Review the following code for quality, performance, and best practices. Highlight issues, suggest improvements, and rate overall quality.\n\n```\n{{input}}\n```',
+    variables: []
+  },
+  {
+    id: 'explain-concept',
+    name: 'Explain This Concept',
+    icon: '\uD83D\uDCA1',
+    category: 'research',
+    description: 'Get a clear explanation of any topic',
+    template: 'Explain {{topic}} in a clear, structured way. Start with a simple overview, then go deeper. Use examples and analogies where helpful.',
+    variables: ['topic']
+  },
+  {
+    id: 'summarize-text',
+    name: 'Summarize This Text',
+    icon: '\uD83D\uDCCB',
+    category: 'writing',
+    description: 'Condense articles or long text into key points',
+    template: 'Summarize the following text. Provide a brief overview (2-3 sentences), then list the key points as bullet points.\n\n{{input}}',
+    variables: []
+  },
+  {
+    id: 'write-blog-post',
+    name: 'Write a Blog Post',
+    icon: '\u270D\uFE0F',
+    category: 'writing',
+    description: 'Draft a blog post on any topic',
+    template: 'Write an engaging blog post about {{topic}}. Include an attention-grabbing introduction, well-structured body with subheadings, and a compelling conclusion. Aim for an informative yet conversational tone.',
+    variables: ['topic']
+  },
+  {
+    id: 'draft-email',
+    name: 'Draft an Email',
+    icon: '\uD83D\uDCE7',
+    category: 'writing',
+    description: 'Compose a professional email',
+    template: 'Draft a {{tone}} email about {{subject}}. Keep it clear, professional, and actionable. Include an appropriate greeting and sign-off.',
+    variables: ['tone', 'subject']
+  },
+  {
+    id: 'brainstorm-ideas',
+    name: 'Brainstorm Ideas',
+    icon: '\uD83E\uDDE0',
+    category: 'creative',
+    description: 'Generate creative ideas for any project',
+    template: 'Brainstorm 10 creative and diverse ideas for {{topic}}. For each idea, include a short title and a 1-2 sentence description. Range from practical to wildly creative.',
+    variables: ['topic']
+  },
+  {
+    id: 'compare-x-vs-y',
+    name: 'Compare X vs Y',
+    icon: '\u2696\uFE0F',
+    category: 'research',
+    description: 'Get a detailed comparison of two things',
+    template: 'Compare {{optionA}} vs {{optionB}}. Create a structured comparison covering key differences, pros/cons of each, and a recommendation for different use cases.',
+    variables: ['optionA', 'optionB']
+  },
+  {
+    id: 'create-plan',
+    name: 'Create a Plan',
+    icon: '\uD83D\uDCCC',
+    category: 'creative',
+    description: 'Build a step-by-step action plan',
+    template: 'Create a detailed, actionable plan for {{goal}}. Break it into phases with specific steps, estimated timelines, and potential challenges to watch for.',
+    variables: ['goal']
+  },
+  {
+    id: 'translate-text',
+    name: 'Translate Text',
+    icon: '\uD83C\uDF10',
+    category: 'writing',
+    description: 'Translate text to another language',
+    template: 'Translate the following text to {{language}}. Preserve the original tone and meaning. Note any phrases that don\'t translate directly.\n\n{{input}}',
+    variables: ['language']
+  },
+  {
+    id: 'improve-writing',
+    name: 'Improve This Writing',
+    icon: '\u2728',
+    category: 'writing',
+    description: 'Polish and elevate your writing',
+    template: 'Improve the following writing. Fix grammar, enhance clarity, strengthen word choice, and improve flow while preserving the original voice and intent.\n\n{{input}}',
+    variables: []
+  },
+  {
+    id: 'research-question',
+    name: 'Research Question',
+    icon: '\uD83D\uDD2C',
+    category: 'research',
+    description: 'Get an in-depth answer to a research question',
+    template: 'Research and provide a comprehensive answer to: {{question}}. Include key facts, different perspectives, and cite the reasoning behind your conclusions.',
+    variables: ['question']
+  },
+  {
+    id: 'refactor-code',
+    name: 'Refactor This Code',
+    icon: '\u267B\uFE0F',
+    category: 'coding',
+    description: 'Clean up and optimize existing code',
+    template: 'Refactor the following code for better readability, performance, and maintainability. Explain the changes you made and why.\n\n```\n{{input}}\n```',
+    variables: []
+  },
+  {
+    id: 'write-tests',
+    name: 'Write Tests',
+    icon: '\uD83E\uDDEA',
+    category: 'coding',
+    description: 'Generate unit tests for your code',
+    template: 'Write comprehensive unit tests for the following code. Cover edge cases, error scenarios, and typical usage. Use {{framework}} testing framework.\n\n```\n{{input}}\n```',
+    variables: ['framework']
+  }
+];
+
+const TEMPLATE_CATEGORIES = [
+  { id: 'all', label: 'All' },
+  { id: 'coding', label: 'Coding' },
+  { id: 'writing', label: 'Writing' },
+  { id: 'research', label: 'Research' },
+  { id: 'creative', label: 'Creative' }
+];
+
+// ── Tier System ─────────────────────────────────────────────────────────────
+const TIERS = {
+  FREE: 'free',
+  PRO: 'pro'
+};
+
+const TIER_LIMITS = {
+  free: {
+    dailyEnhancements: 15,
+    multiStep: false,
+    deepAnalysis: false,
+    customEndpoints: false,
+    maxHistoryItems: 50,
+    styles: ['short', 'detailed', 'creative'],  // Limited styles
+  },
+  pro: {
+    dailyEnhancements: Infinity,
+    multiStep: true,
+    deepAnalysis: true,
+    customEndpoints: true,
+    maxHistoryItems: 500,
+    styles: null, // All styles
+  }
+};
 
 // ── Multi-Step Enhancement Pipeline ─────────────────────────────────────────
 // Three passes: Expand → Structure → Polish

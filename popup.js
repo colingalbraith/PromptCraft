@@ -139,6 +139,38 @@ function initDomRefs() {
     onboardingHint: $('onboarding-hint'),
     onboardingStartBtn: $('onboarding-start'),
     onboardingSkipBtn: $('onboarding-skip'),
+    // Templates
+    templatesPage: $('templates-page'),
+    templatesBtn: $('templates-btn'),
+    backFromTemplates: $('back-from-templates'),
+    templateCategoryTabs: $('template-category-tabs'),
+    templateGrid: $('template-grid'),
+    templateDetail: $('template-detail'),
+    backFromTemplateDetail: $('back-from-template-detail'),
+    templateDetailIcon: $('template-detail-icon'),
+    templateDetailName: $('template-detail-name'),
+    templateDetailDesc: $('template-detail-desc'),
+    templateVariables: $('template-variables'),
+    templateInputGroup: $('template-input-group'),
+    templateInputArea: $('template-input-area'),
+    templatePreview: $('template-preview'),
+    templatePreviewText: $('template-preview-text'),
+    useTemplateBtn: $('use-template-btn'),
+    templatesFooterBtn: $('templates-footer-btn'),
+    // Usage
+    usagePage: $('usage-page'),
+    usageBtn: $('usage-btn'),
+    usageIndicatorText: $('usage-indicator-text'),
+    backFromUsage: $('back-from-usage'),
+    usagePeriod: $('usage-period'),
+    usageTotalEnhancements: $('usage-total-enhancements'),
+    usageTotalCost: $('usage-total-cost'),
+    usageTotalTokens: $('usage-total-tokens'),
+    usageAvgPre: $('usage-avg-pre'),
+    usageAvgPost: $('usage-avg-post'),
+    usageAvgImprovement: $('usage-avg-improvement'),
+    usageModelList: $('usage-model-list'),
+    resetUsageBtn: $('reset-usage-btn'),
   };
 }
 
@@ -1236,6 +1268,350 @@ function cycleTheme() {
   });
 }
 
+// ── Usage Analytics ──────────────────────────────────────────────────────────
+
+let cachedProvider = null;
+
+function formatTokenCount(n) {
+  if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+  if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+  return String(n);
+}
+
+function formatTimePeriod(sinceTimestamp) {
+  const diff = Date.now() - sinceTimestamp;
+  const days = Math.floor(diff / 86400000);
+  if (days === 0) return 'today';
+  if (days === 1) return 'since yesterday';
+  if (days < 7) return `last ${days} days`;
+  if (days < 30) return `last ${Math.floor(days / 7)} weeks`;
+  if (days < 365) return `last ${Math.floor(days / 30)} months`;
+  return `last ${Math.floor(days / 365)}+ years`;
+}
+
+async function loadUsageIndicator() {
+  const resp = await sendMsg({ action: 'getUsageStats' });
+  if (!resp.success) return;
+  const stats = resp.stats;
+  if (els.usageIndicatorText) {
+    const count = stats.totalEnhancements || 0;
+    els.usageIndicatorText.textContent = `${count} enhancement${count !== 1 ? 's' : ''}`;
+  }
+}
+
+async function loadUsagePage() {
+  // Fetch settings to know provider
+  const settingsResp = await sendMsg({ action: 'getSettings' });
+  if (settingsResp.success) {
+    cachedProvider = settingsResp.settings[STORAGE_KEYS.PROVIDER];
+  }
+  const isOllama = cachedProvider === PROVIDERS.OLLAMA;
+
+  // Fetch usage stats
+  const usageResp = await sendMsg({ action: 'getUsageStats' });
+  if (!usageResp.success) return;
+  const stats = usageResp.stats;
+
+  // Top stat cards
+  els.usageTotalEnhancements.textContent = stats.totalEnhancements || 0;
+
+  if (isOllama && stats.totalCostUSD === 0) {
+    els.usageTotalCost.textContent = 'Free';
+    els.usageTotalCost.title = 'Ollama runs locally';
+  } else {
+    els.usageTotalCost.textContent = '$' + (stats.totalCostUSD || 0).toFixed(4);
+    els.usageTotalCost.title = 'Estimated cost based on token usage';
+  }
+
+  const totalTokens = (stats.totalInputTokens || 0) + (stats.totalOutputTokens || 0);
+  els.usageTotalTokens.textContent = formatTokenCount(totalTokens);
+  els.usageTotalTokens.title = `Input: ${formatTokenCount(stats.totalInputTokens || 0)} / Output: ${formatTokenCount(stats.totalOutputTokens || 0)}`;
+
+  // Period
+  if (els.usagePeriod && stats.since) {
+    els.usagePeriod.textContent = formatTimePeriod(stats.since);
+  }
+
+  // Model breakdown
+  renderModelBreakdown(stats.byModel || {}, isOllama);
+
+  // Prompt scoring stats from history
+  await loadScoringStats();
+}
+
+function renderModelBreakdown(byModel, isOllama) {
+  const list = els.usageModelList;
+  const entries = Object.entries(byModel).sort((a, b) => b[1].enhancements - a[1].enhancements);
+
+  if (entries.length === 0) {
+    list.innerHTML = '<div class="usage-empty">No usage data yet.</div>';
+    return;
+  }
+
+  list.innerHTML = '';
+  entries.forEach(([model, data], idx) => {
+    const row = document.createElement('div');
+    row.className = 'usage-model-row';
+    row.style.animationDelay = `${idx * 0.05}s`;
+
+    const tokens = (data.inputTokens || 0) + (data.outputTokens || 0);
+    const costText = isOllama ? 'Free' : '$' + (data.costUSD || 0).toFixed(4);
+
+    // Try to find a friendly label for the model
+    let friendlyName = model;
+    for (const provider of Object.keys(API_MODELS)) {
+      const match = (API_MODELS[provider] || []).find(m => m.id === model);
+      if (match) { friendlyName = match.label; break; }
+    }
+
+    row.innerHTML = `
+      <span class="usage-model-name" title="${escapeHtml(model)}">${escapeHtml(friendlyName)}</span>
+      <span class="usage-model-stat count">${data.enhancements}x</span>
+      <span class="usage-model-stat tokens">${formatTokenCount(tokens)}</span>
+      <span class="usage-model-stat cost">${costText}</span>
+    `;
+    list.appendChild(row);
+  });
+}
+
+async function loadScoringStats() {
+  const resp = await sendMsg({ action: 'getHistory' });
+  if (!resp.success) return;
+  const history = resp.history || [];
+
+  let preTotal = 0, postTotal = 0, count = 0;
+  history.forEach(entry => {
+    if (entry.preScore && typeof entry.preScore.overall === 'number' &&
+        entry.postScore && typeof entry.postScore.overall === 'number') {
+      preTotal += entry.preScore.overall;
+      postTotal += entry.postScore.overall;
+      count++;
+    }
+  });
+
+  if (count > 0) {
+    const avgPre = Math.round(preTotal / count);
+    const avgPost = Math.round(postTotal / count);
+    const avgImprovement = avgPost - avgPre;
+    els.usageAvgPre.textContent = avgPre;
+    els.usageAvgPost.textContent = avgPost;
+    els.usageAvgImprovement.textContent = (avgImprovement >= 0 ? '+' : '') + avgImprovement;
+  } else {
+    els.usageAvgPre.textContent = '--';
+    els.usageAvgPost.textContent = '--';
+    els.usageAvgImprovement.textContent = '--';
+  }
+}
+
+let resetConfirmTimeout = null;
+
+function handleResetUsage() {
+  const btn = els.resetUsageBtn;
+  if (btn.classList.contains('confirming')) {
+    // Second click — do the reset
+    clearTimeout(resetConfirmTimeout);
+    btn.classList.remove('confirming');
+    btn.textContent = 'Reset Stats';
+
+    sendMsg({ action: 'resetUsageStats' }).then(() => {
+      showToast('Usage stats reset.', 'info');
+      loadUsagePage();
+      loadUsageIndicator();
+    });
+  } else {
+    // First click — ask for confirmation
+    btn.classList.add('confirming');
+    btn.textContent = 'Click again to confirm reset';
+    resetConfirmTimeout = setTimeout(() => {
+      btn.classList.remove('confirming');
+      btn.textContent = 'Reset Stats';
+    }, 3000);
+  }
+}
+
+// ── Templates ───────────────────────────────────────────────────────────────
+
+let activeTemplateCategory = 'all';
+let activeTemplate = null;
+
+function renderTemplateCategoryTabs() {
+  if (!els.templateCategoryTabs) return;
+  els.templateCategoryTabs.innerHTML = '';
+  TEMPLATE_CATEGORIES.forEach((cat) => {
+    const tab = document.createElement('button');
+    tab.className = 'template-category-tab' + (activeTemplateCategory === cat.id ? ' active' : '');
+    tab.textContent = cat.label;
+    tab.dataset.category = cat.id;
+    tab.addEventListener('click', () => {
+      activeTemplateCategory = cat.id;
+      renderTemplateCategoryTabs();
+      renderTemplateGrid();
+    });
+    els.templateCategoryTabs.appendChild(tab);
+  });
+}
+
+function renderTemplateGrid() {
+  if (!els.templateGrid) return;
+  els.templateGrid.innerHTML = '';
+
+  const filtered = activeTemplateCategory === 'all'
+    ? PROMPT_TEMPLATES
+    : PROMPT_TEMPLATES.filter(t => t.category === activeTemplateCategory);
+
+  if (filtered.length === 0) {
+    els.templateGrid.innerHTML = '<div class="template-grid-empty">No templates in this category.</div>';
+    return;
+  }
+
+  filtered.forEach((tpl, idx) => {
+    const card = document.createElement('div');
+    card.className = 'template-card';
+    card.style.animationDelay = `${idx * 0.04}s`;
+    card.innerHTML = `
+      <span class="template-card-icon">${tpl.icon}</span>
+      <span class="template-card-name">${escapeHtml(tpl.name)}</span>
+      <span class="template-card-desc">${escapeHtml(tpl.description)}</span>
+    `;
+    card.addEventListener('click', () => openTemplateDetail(tpl));
+    els.templateGrid.appendChild(card);
+  });
+}
+
+function openTemplateDetail(tpl) {
+  activeTemplate = tpl;
+  els.templateDetailIcon.textContent = tpl.icon;
+  els.templateDetailName.textContent = tpl.name;
+  els.templateDetailDesc.textContent = tpl.description;
+
+  // Build variable fields
+  els.templateVariables.innerHTML = '';
+  const namedVars = tpl.variables || [];
+  namedVars.forEach((varName) => {
+    const field = document.createElement('div');
+    field.className = 'template-variable-field';
+    const label = document.createElement('label');
+    label.textContent = varName.replace(/([A-Z])/g, ' $1').trim();
+    label.setAttribute('for', 'tpl-var-' + varName);
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.id = 'tpl-var-' + varName;
+    input.dataset.variable = varName;
+    input.placeholder = 'Enter ' + varName.replace(/([A-Z])/g, ' $1').toLowerCase().trim() + '...';
+    input.addEventListener('input', updateTemplatePreview);
+    field.appendChild(label);
+    field.appendChild(input);
+    els.templateVariables.appendChild(field);
+  });
+
+  // Show/hide the main input area based on whether template uses {{input}}
+  const needsInput = tpl.template.includes('{{input}}');
+  els.templateInputGroup.classList.toggle('hidden', !needsInput);
+  els.templateInputArea.value = '';
+
+  // Attach input listener for preview updates
+  els.templateInputArea.removeEventListener('input', updateTemplatePreview);
+  els.templateInputArea.addEventListener('input', updateTemplatePreview);
+
+  updateTemplatePreview();
+
+  // Show detail, hide grid
+  els.templateDetail.classList.remove('hidden');
+  els.templateGrid.style.display = 'none';
+  els.templateCategoryTabs.style.display = 'none';
+}
+
+function closeTemplateDetail() {
+  els.templateDetail.classList.add('hidden');
+  els.templateGrid.style.display = '';
+  els.templateCategoryTabs.style.display = '';
+  activeTemplate = null;
+}
+
+function updateTemplatePreview() {
+  if (!activeTemplate) return;
+  let text = activeTemplate.template;
+
+  // Replace named variables
+  const varFields = els.templateVariables.querySelectorAll('input[data-variable]');
+  varFields.forEach((field) => {
+    const varName = field.dataset.variable;
+    const value = field.value.trim();
+    const pattern = new RegExp('\\{\\{' + varName + '\\}\\}', 'g');
+    if (value) {
+      text = text.replace(pattern, value);
+    }
+  });
+
+  // Replace {{input}} with content area value
+  const inputVal = els.templateInputArea.value.trim();
+  if (inputVal) {
+    text = text.replace(/\{\{input\}\}/g, inputVal);
+  }
+
+  // Build highlighted HTML for preview
+  // Highlight filled variables and mark unfilled ones
+  let html = escapeHtml(text);
+  // Mark remaining unfilled {{...}} placeholders
+  html = html.replace(/\{\{(\w+)\}\}/g, '<span class="tpl-unfilled">{{$1}}</span>');
+
+  els.templatePreviewText.innerHTML = html;
+}
+
+function handleUseTemplate() {
+  if (!activeTemplate) return;
+  let text = activeTemplate.template;
+
+  // Replace named variables
+  const varFields = els.templateVariables.querySelectorAll('input[data-variable]');
+  let allFilled = true;
+  varFields.forEach((field) => {
+    const varName = field.dataset.variable;
+    const value = field.value.trim();
+    const pattern = new RegExp('\\{\\{' + varName + '\\}\\}', 'g');
+    if (value) {
+      text = text.replace(pattern, value);
+    } else {
+      allFilled = false;
+    }
+  });
+
+  // Replace {{input}}
+  const inputVal = els.templateInputArea.value.trim();
+  const needsInput = activeTemplate.template.includes('{{input}}');
+  if (needsInput && inputVal) {
+    text = text.replace(/\{\{input\}\}/g, inputVal);
+  } else if (needsInput && !inputVal) {
+    allFilled = false;
+  }
+
+  if (!allFilled) {
+    // Check which fields still have unfilled placeholders
+    const remaining = text.match(/\{\{(\w+)\}\}/g);
+    if (remaining && remaining.length > 0) {
+      showToast('Please fill in all fields before using the template.', 'error');
+      return;
+    }
+  }
+
+  // Insert into main page textarea
+  els.input.value = text;
+  updateCharCount();
+  autoResize(els.input);
+
+  // Navigate back to main page
+  closeTemplateDetail();
+  navigateTo(els.mainPage);
+  showToast('Template loaded! You can now enhance it.', 'success');
+}
+
+function openTemplatesPage() {
+  closeTemplateDetail();
+  renderTemplateCategoryTabs();
+  renderTemplateGrid();
+  navigateTo(els.templatesPage);
+}
+
 // ── Init ────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1243,6 +1619,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initBackground();
   loadThemePreference();
   loadSettings();
+  loadUsageIndicator();
 
   // Dark mode toggle
   els.themeToggleBtn.addEventListener('click', cycleTheme);
@@ -1261,6 +1638,18 @@ document.addEventListener('DOMContentLoaded', () => {
   els.historyBtn.addEventListener('click', () => { loadHistory(); navigateTo(els.historyPage); });
   els.backFromSettings.addEventListener('click', () => navigateTo(els.mainPage));
   els.backFromHistory.addEventListener('click', () => navigateTo(els.mainPage));
+
+  // Templates page navigation
+  els.templatesBtn.addEventListener('click', openTemplatesPage);
+  els.templatesFooterBtn.addEventListener('click', openTemplatesPage);
+  els.backFromTemplates.addEventListener('click', () => { closeTemplateDetail(); navigateTo(els.mainPage); });
+  els.backFromTemplateDetail.addEventListener('click', closeTemplateDetail);
+  els.useTemplateBtn.addEventListener('click', handleUseTemplate);
+
+  // Usage page navigation
+  els.usageBtn.addEventListener('click', () => { loadUsagePage(); navigateTo(els.usagePage); });
+  els.backFromUsage.addEventListener('click', () => navigateTo(els.mainPage));
+  els.resetUsageBtn.addEventListener('click', handleResetUsage);
 
   // Provider status bar — click to go to settings
   els.providerStatus.addEventListener('click', () => navigateTo(els.settingsPage));
