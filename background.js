@@ -321,6 +321,60 @@ async function testOllamaConnection(settings) {
   }
 }
 
+async function testApiKeyConnection(provider, apiKey) {
+  if (!apiKey || !apiKey.trim()) {
+    return { success: false, error: 'No API key provided.' };
+  }
+  try {
+    if (provider === API_PROVIDERS.OPENAI) {
+      const resp = await fetchWithTimeout('https://api.openai.com/v1/models', {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${apiKey}` }
+      });
+      if (!resp.ok) {
+        const detail = await resp.text().catch(() => '');
+        return { success: false, error: `Invalid key (${resp.status}): ${detail.substring(0, 120)}` };
+      }
+      return { success: true };
+    }
+    if (provider === API_PROVIDERS.GEMINI) {
+      const resp = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`, {
+        method: 'GET'
+      });
+      if (!resp.ok) {
+        const detail = await resp.text().catch(() => '');
+        return { success: false, error: `Invalid key (${resp.status}): ${detail.substring(0, 120)}` };
+      }
+      return { success: true };
+    }
+    if (provider === API_PROVIDERS.CLAUDE) {
+      const resp = await fetchWithTimeout('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          messages: [{ role: 'user', content: 'Hi' }],
+          max_tokens: 1
+        })
+      });
+      if (!resp.ok) {
+        if (resp.status === 401) return { success: false, error: 'Invalid API key.' };
+        const detail = await resp.text().catch(() => '');
+        return { success: false, error: `API error (${resp.status}): ${detail.substring(0, 120)}` };
+      }
+      return { success: true };
+    }
+    return { success: false, error: 'Unknown provider.' };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
 // ── History ─────────────────────────────────────────────────────────────────
 
 async function addToHistory(entry) {
@@ -505,8 +559,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const merged = { ...settings, ...(message.settings || {}) };
         if (message.provider === PROVIDERS.OLLAMA) {
           sendResponse(await testOllamaConnection(merged));
+        } else if (message.provider === PROVIDERS.API && message.apiProvider && message.apiKey) {
+          sendResponse(await testApiKeyConnection(message.apiProvider, message.apiKey));
         } else {
-          sendResponse({ success: false, error: 'Use API provider directly.' });
+          sendResponse({ success: false, error: 'Missing provider or API key.' });
         }
       } catch (err) {
         sendResponse({ success: false, error: err.message });

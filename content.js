@@ -719,7 +719,7 @@
             removeGlow();
             undoState = null;
             const err = response?.error || 'Enhancement failed';
-            showToast(err.length > 80 ? 'Enhancement error. Check extension popup.' : err);
+            showToast(err);
           }
         }
       );

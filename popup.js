@@ -86,6 +86,8 @@ function initDomRefs() {
     // Settings — API
     apiKey: $('api-key'),
     showKeyBtn: $('show-key'),
+    testApiKeyBtn: $('test-api-key'),
+    apiKeyStatus: $('api-key-status'),
     apiModelSelect: $('api-model-select'),
     apiModelTrigger: document.querySelector('#api-model-select .custom-select-trigger'),
     apiModelValue: document.querySelector('#api-model-select .custom-select-value'),
@@ -113,6 +115,7 @@ function initDomRefs() {
     historyList: $('history-list'),
     historySearch: $('history-search'),
     historyCount: $('history-count'),
+    exportHistoryBtn: $('export-history'),
     clearHistoryBtn: $('clear-history'),
     // Provider status
     providerStatus: $('provider-status'),
@@ -120,6 +123,17 @@ function initDomRefs() {
     // Context toggle
     includeContext: $('include-context'),
     contextIndicator: $('context-indicator'),
+    viewContextBtn: $('view-context'),
+    contextModal: $('context-modal'),
+    contextModalContent: $('context-modal-content'),
+    closeContextModal: $('close-context-modal'),
+    // Onboarding
+    onboardingPage: $('onboarding-page'),
+    onboardingApiKey: $('onboarding-api-key'),
+    onboardingKeySection: $('onboarding-key-section'),
+    onboardingHint: $('onboarding-hint'),
+    onboardingStartBtn: $('onboarding-start'),
+    onboardingSkipBtn: $('onboarding-skip'),
   };
 }
 
@@ -216,6 +230,15 @@ async function loadSettings() {
   if (s.provider === PROVIDERS.OLLAMA) {
     loadOllamaModels();
   }
+
+  // Detect conversation context on active tab (non-blocking)
+  detectConversationContext();
+
+  // Check if onboarding is needed
+  const needsOnboarding = await checkOnboarding(s);
+  if (needsOnboarding) {
+    navigateTo(els.onboardingPage);
+  }
 }
 
 function updateProviderTabs() {
@@ -224,6 +247,126 @@ function updateProviderTabs() {
   els.providerOllamaTab.classList.toggle('active', isOllama);
   els.apiSettings.classList.toggle('hidden', isOllama);
   els.ollamaSettings.classList.toggle('hidden', !isOllama);
+}
+
+// ── Onboarding ──────────────────────────────────────────────────────────────
+
+let onboardingSelectedProvider = null;
+
+async function checkOnboarding(settings) {
+  return new Promise((resolve) => {
+    chrome.storage.local.get([STORAGE_KEYS.ONBOARDING_COMPLETE], (result) => {
+      if (result[STORAGE_KEYS.ONBOARDING_COMPLETE]) {
+        resolve(false);
+        return;
+      }
+      // Check if any API key is already configured
+      const hasAnyKey = !!(
+        settings[STORAGE_KEYS.OPENAI_API_KEY] ||
+        settings[STORAGE_KEYS.GEMINI_API_KEY] ||
+        settings[STORAGE_KEYS.CLAUDE_API_KEY]
+      );
+      if (hasAnyKey) {
+        // Already configured — mark complete and skip
+        chrome.storage.local.set({ [STORAGE_KEYS.ONBOARDING_COMPLETE]: true });
+        resolve(false);
+        return;
+      }
+      resolve(true);
+    });
+  });
+}
+
+function completeOnboarding() {
+  chrome.storage.local.set({ [STORAGE_KEYS.ONBOARDING_COMPLETE]: true });
+}
+
+async function handleOnboardingStart() {
+  if (!onboardingSelectedProvider) return;
+
+  if (onboardingSelectedProvider === 'ollama') {
+    const settings = {
+      [STORAGE_KEYS.PROVIDER]: PROVIDERS.OLLAMA,
+    };
+    await sendMsg({ action: 'saveSettings', settings });
+  } else {
+    const key = els.onboardingApiKey.value.trim();
+    if (!key) {
+      showToast('Please enter an API key.', 'error');
+      return;
+    }
+    const keyMap = { openai: STORAGE_KEYS.OPENAI_API_KEY, gemini: STORAGE_KEYS.GEMINI_API_KEY, claude: STORAGE_KEYS.CLAUDE_API_KEY };
+    const settings = {
+      [STORAGE_KEYS.PROVIDER]: PROVIDERS.API,
+      [STORAGE_KEYS.API_PROVIDER]: onboardingSelectedProvider,
+      [keyMap[onboardingSelectedProvider]]: key,
+    };
+    await sendMsg({ action: 'saveSettings', settings });
+  }
+
+  completeOnboarding();
+  await loadSettings();
+  navigateTo(els.mainPage);
+  showToast('Welcome to PromptCraft!', 'success');
+}
+
+function selectOnboardingProvider(provider) {
+  onboardingSelectedProvider = provider;
+
+  // Update button active states
+  document.querySelectorAll('.onboarding-provider-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.provider === provider);
+  });
+
+  if (provider === 'ollama') {
+    els.onboardingKeySection.classList.add('hidden');
+    els.onboardingStartBtn.disabled = false;
+  } else {
+    els.onboardingKeySection.classList.remove('hidden');
+    const hint = API_HINTS[provider];
+    if (hint) {
+      els.onboardingHint.innerHTML = `Get a key at <a href="${hint.url}" target="_blank">${hint.label}</a>`;
+    }
+    els.onboardingStartBtn.disabled = !els.onboardingApiKey.value.trim();
+  }
+}
+
+// ── Context Detection ────────────────────────────────────────────────────────
+
+let cachedContext = null;
+
+function detectConversationContext() {
+  try {
+    chrome.tabs.query({ active: true, lastFocusedWindow: true }, (tabs) => {
+      if (!tabs || !tabs[0]?.id) return;
+      chrome.tabs.sendMessage(tabs[0].id, { action: 'getConversation' }, (resp) => {
+        if (chrome.runtime.lastError || !resp?.context) {
+          cachedContext = null;
+          if (els.contextIndicator) els.contextIndicator.textContent = '';
+          if (els.viewContextBtn) els.viewContextBtn.style.display = 'none';
+          return;
+        }
+        cachedContext = resp.context;
+        if (els.contextIndicator) {
+          els.contextIndicator.textContent = `${cachedContext.messageCount} msgs detected`;
+        }
+        if (els.viewContextBtn) {
+          els.viewContextBtn.style.display = '';
+        }
+      });
+    });
+  } catch {
+    cachedContext = null;
+  }
+}
+
+function showContextPreview() {
+  if (!cachedContext || !cachedContext.conversation) {
+    showToast('No conversation context available.', 'info');
+    return;
+  }
+  els.contextModalContent.textContent = cachedContext.conversation;
+  els.contextModal.classList.remove('hidden');
 }
 
 // ── API Provider Switching ──────────────────────────────────────────────────
@@ -264,6 +407,12 @@ function updateApiProviderUI() {
   // Reset show/hide key button
   els.apiKey.type = 'password';
   els.showKeyBtn.textContent = 'Show';
+
+  // Clear test status
+  if (els.apiKeyStatus) {
+    els.apiKeyStatus.textContent = '';
+    els.apiKeyStatus.className = 'connection-status';
+  }
 }
 
 function populateApiModelDropdown(models, selectedValue) {
@@ -398,9 +547,85 @@ function closeOllamaDropdown() {
   els.ollamaModelSelect.classList.remove('open');
 }
 
+// ── Test API Key ────────────────────────────────────────────────────────────
+
+async function testApiKey() {
+  const btn = els.testApiKeyBtn;
+  btn.disabled = true;
+  btn.textContent = '...';
+  els.apiKeyStatus.textContent = '';
+  els.apiKeyStatus.className = 'connection-status';
+
+  saveCurrentApiFieldsToState();
+  const key = apiKeys[selectedApiProvider].trim();
+  if (!key) {
+    els.apiKeyStatus.className = 'connection-status error';
+    els.apiKeyStatus.textContent = 'Please enter an API key first.';
+    btn.disabled = false;
+    btn.textContent = 'Test';
+    return;
+  }
+
+  const resp = await sendMsg({
+    action: 'testConnection',
+    provider: PROVIDERS.API,
+    apiProvider: selectedApiProvider,
+    apiKey: key
+  });
+
+  btn.disabled = false;
+  btn.textContent = 'Test';
+
+  if (resp.success) {
+    els.apiKeyStatus.className = 'connection-status success';
+    els.apiKeyStatus.textContent = 'Valid! Connection successful.';
+  } else {
+    els.apiKeyStatus.className = 'connection-status error';
+    els.apiKeyStatus.textContent = resp.error || 'Connection failed';
+  }
+}
+
 // ── Save Settings ───────────────────────────────────────────────────────────
 
+function clearValidationErrors() {
+  document.querySelectorAll('.validation-error').forEach(el => el.remove());
+}
+
+function showValidationError(fieldId, message) {
+  const field = document.getElementById(fieldId);
+  if (!field) return;
+  const container = field.closest('.input-group') || field.parentElement;
+  const err = document.createElement('div');
+  err.className = 'validation-error';
+  err.textContent = message;
+  container.appendChild(err);
+}
+
+function validateSettings() {
+  clearValidationErrors();
+  const isOllama = els.providerOllamaRadio.checked;
+
+  if (isOllama) {
+    const endpoint = els.ollamaEndpoint.value.trim();
+    if (endpoint && !endpoint.startsWith('http://') && !endpoint.startsWith('https://')) {
+      showValidationError('ollama-endpoint', 'Endpoint must start with http:// or https://');
+      return false;
+    }
+  } else {
+    saveCurrentApiFieldsToState();
+    const key = apiKeys[selectedApiProvider].trim();
+    if (!key) {
+      showValidationError('api-key', `${API_PROVIDER_LABELS[selectedApiProvider]} API key is required.`);
+      return false;
+    }
+  }
+  return true;
+}
+
 async function handleSaveSettings() {
+  // Validate before saving
+  if (!validateSettings()) return;
+
   // Save current API field values to state before building settings object
   saveCurrentApiFieldsToState();
 
@@ -705,6 +930,24 @@ function filterHistory(query) {
   renderHistory(filtered);
 }
 
+function handleExportHistory() {
+  if (historyData.length === 0) {
+    showToast('No history to export.', 'info');
+    return;
+  }
+  const json = JSON.stringify(historyData, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `promptcraft-history-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  showToast('History exported!', 'success');
+}
+
 async function handleClearHistory() {
   await sendMsg({ action: 'clearHistory' });
   historyData = [];
@@ -1002,6 +1245,9 @@ document.addEventListener('DOMContentLoaded', () => {
     closeOllamaDropdown();
   });
 
+  // Test API key
+  els.testApiKeyBtn.addEventListener('click', testApiKey);
+
   // Ollama model refresh
   els.refreshOllamaModels.addEventListener('click', loadOllamaModels);
 
@@ -1037,8 +1283,26 @@ document.addEventListener('DOMContentLoaded', () => {
   els.clearBtn.addEventListener('click', handleClear);
 
   // History
+  els.exportHistoryBtn.addEventListener('click', handleExportHistory);
   els.clearHistoryBtn.addEventListener('click', handleClearHistory);
   els.historySearch.addEventListener('input', (e) => filterHistory(e.target.value.trim()));
+
+  // Context preview
+  els.viewContextBtn.addEventListener('click', showContextPreview);
+  els.closeContextModal.addEventListener('click', () => els.contextModal.classList.add('hidden'));
+
+  // Onboarding
+  document.querySelectorAll('.onboarding-provider-btn').forEach(btn => {
+    btn.addEventListener('click', () => selectOnboardingProvider(btn.dataset.provider));
+  });
+  els.onboardingApiKey.addEventListener('input', () => {
+    els.onboardingStartBtn.disabled = !els.onboardingApiKey.value.trim();
+  });
+  els.onboardingStartBtn.addEventListener('click', handleOnboardingStart);
+  els.onboardingSkipBtn.addEventListener('click', () => {
+    completeOnboarding();
+    navigateTo(els.mainPage);
+  });
 
   // Init char count
   updateCharCount();

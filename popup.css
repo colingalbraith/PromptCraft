@@ -1690,9 +1690,166 @@ textarea {
   white-space: nowrap;
 }
 
+/* ── Context Modal ── */
+.context-modal {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(16px);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  padding: 18px 20px;
+  animation: staggerIn 0.3s var(--ease-spring) both;
+  border-radius: 16px;
+}
+
+.context-modal.hidden {
+  display: none;
+}
+
+.context-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.context-modal-header h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.context-modal-content {
+  flex: 1;
+  overflow-y: auto;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  border: 1px solid var(--border);
+}
+
+.context-modal-content::-webkit-scrollbar { width: 4px; }
+.context-modal-content::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+}
+
+/* ── Validation Error ── */
+.validation-error {
+  font-size: 11px;
+  color: var(--error);
+  margin-top: 4px;
+  animation: statusSlideIn 0.3s var(--ease-spring) both;
+}
+
+/* ── Shortcut Hint ── */
+.shortcut-hint {
+  display: block;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  opacity: 0.45;
+  letter-spacing: 0.3px;
+  margin-top: -4px;
+  transition: opacity 0.2s ease;
+}
+
+.shortcut-hint:hover {
+  opacity: 0.7;
+}
+
 /* ── Utility ── */
 .hidden {
   display: none !important;
+}
+
+/* ── Onboarding ── */
+.onboarding-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 14px;
+  text-align: center;
+  padding: 20px;
+}
+
+.onboarding-logo {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  box-shadow: var(--shadow-md);
+  animation: logoPulse 4s ease-in-out infinite;
+}
+
+.onboarding-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.onboarding-subtitle {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  max-width: 300px;
+}
+
+.onboarding-providers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  width: 100%;
+  max-width: 280px;
+}
+
+.onboarding-provider-btn {
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border);
+  background: rgba(255, 255, 255, 0.4);
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.25s var(--ease-spring);
+}
+
+.onboarding-provider-btn:hover {
+  border-color: rgba(232, 98, 30, 0.3);
+  color: var(--accent);
+}
+
+.onboarding-provider-btn.active {
+  background: linear-gradient(135deg, var(--accent), var(--secondary));
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 3px 12px rgba(232, 98, 30, 0.3);
+}
+
+.onboarding-provider-btn.ollama {
+  grid-column: span 2;
+}
+
+.onboarding-key-section {
+  width: 100%;
+  max-width: 280px;
+  animation: staggerIn 0.4s var(--ease-spring) both;
+}
+
+.onboarding-key-section .input-group {
+  margin-bottom: 4px;
 }
 
 /* ── Iframe Mode (injected floating panel) ── */
