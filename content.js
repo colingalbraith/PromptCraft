@@ -773,7 +773,7 @@
         messageCount: selected.length
       };
     } catch (err) {
-      console.error('PromptCraft: Error extracting conversation:', err);
+      // Silently handle extraction errors
       return null;
     }
   }

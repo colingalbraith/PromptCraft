@@ -1057,7 +1057,7 @@ chrome.runtime.onInstalled.addListener(() => {
     documentUrlPatterns: AI_SITES
   }, () => {
     if (chrome.runtime.lastError) {
-      console.error('Context menu error:', chrome.runtime.lastError);
+      void chrome.runtime.lastError;
     }
   });
 });
@@ -1066,7 +1066,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === 'rewrite-with-promptcraft' && tab?.id) {
     chrome.tabs.sendMessage(tab.id, { action: 'triggerEnhance' }, () => {
       if (chrome.runtime.lastError) {
-        console.error('Error sending triggerEnhance:', chrome.runtime.lastError);
+        void chrome.runtime.lastError;
       }
     });
   }

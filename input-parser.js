@@ -60,7 +60,7 @@ const InputParser = {
       return '\n\nDeep Analysis (LLM-powered insights):\n' + parts.map(p => `• ${p}`).join('\n') + '\n';
     } catch (err) {
       // Deep analysis is best-effort — don't block enhancement if it fails
-      console.warn('Deep analysis failed:', err.message);
+      // Deep analysis failed silently — enhancement continues without it
       return '';
     }
   },

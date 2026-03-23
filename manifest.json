@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "PromptCraft",
   "short_name": "PromptCraft",
-  "version": "2.0",
+  "version": "1.0.0",
   "description": "Enhance your AI prompts with OpenAI, Gemini, Claude, or local Ollama models",
   "permissions": [
     "storage",
