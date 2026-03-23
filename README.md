@@ -1,237 +1,157 @@
+<div align="center">
+
 # PromptCraft Website
 
-A modern, responsive landing page for PromptCraft - an AI-powered prompt optimization tool. Built with semantic HTML5, modular CSS, and vanilla JavaScript following industry best practices.
+The landing page for [PromptCraft](https://github.com/colingalbraith/PromptCraft) — a free, open-source Chrome extension for one-click prompt enhancement.
 
-## 🏗️ Project Structure
+[![Live Site](https://img.shields.io/badge/Live-getpromptcraft.vercel.app-orange)](https://getpromptcraft.vercel.app)
+[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black)](https://vercel.com)
 
-```
-PC-site/
-├── index.html              # Main HTML file
-├── css/
-│   └── styles.css          # Main stylesheet
-├── js/
-│   └── main.js            # Main JavaScript file
-├── assets/                 # Static assets (images, icons, etc.)
-├── package.json           # Node.js dependencies and scripts
-└── README.md              # Project documentation
-```
-
-## 🚀 Features
-
-- **Responsive Design**: Mobile-first approach with fluid layouts
-- **Modern CSS**: CSS Grid, Flexbox, custom properties (CSS variables)
-- **Semantic HTML**: Proper heading hierarchy, ARIA labels, screen reader support
-- **Performance Optimized**: Lazy loading, efficient animations, optimized assets
-- **Cross-browser Compatible**: Supports all modern browsers
-- **Accessibility**: WCAG 2.1 compliant with keyboard navigation support
-- **Interactive Elements**: Custom cursor, smooth scrolling, hover effects
-- **SEO Optimized**: Meta tags, Open Graph, Twitter Cards
-
-## 🛠️ Development
-
-### Prerequisites
-
-- Node.js (v16 or higher)
-- npm or yarn
-
-### Getting Started
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/colingalbraith/PromptCraft.git
-   cd PC-site
-   ```
-
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
-
-3. **Start development server**
-   ```bash
-   npm run dev
-   ```
-   This will start a live server at `http://localhost:3000`
-
-### Available Scripts
-
-- `npm run dev` - Start development server with live reload
-- `npm run build` - Build optimized production files
-- `npm run lint:css` - Lint CSS files
-- `npm run lint:js` - Lint JavaScript files
-- `npm run format` - Format all files with Prettier
-- `npm run validate:html` - Validate HTML markup
-- `npm run lighthouse` - Run Lighthouse performance audit
-- `npm run test` - Run all linting and validation tests
-
-## 📁 File Organization
-
-### CSS Architecture
-
-The stylesheet follows a modular approach with clear sections:
-
-- **Variables**: CSS custom properties for colors, fonts, spacing
-- **Global Styles**: Reset, base typography, accessibility
-- **Components**: Reusable UI components (buttons, cards, etc.)
-- **Layout**: Page structure (header, hero, sections, footer)
-- **Animations**: Keyframes and transitions
-- **Responsive**: Media queries for different screen sizes
-
-### JavaScript Modules
-
-The main.js file is organized into modules:
-
-- **App**: Main application initialization
-- **Cursor**: Custom cursor functionality
-- **BackgroundOrbs**: Animated background elements
-- **Header**: Navigation and scroll effects
-- **ScrollAnimations**: Intersection Observer animations
-- **InteractiveDemo**: Live prompt transformation demo
-- **Navigation**: Smooth scrolling and keyboard navigation
-- **Performance**: Optimization utilities
-
-## 🎨 Design System
-
-### Colors
-
-```css
-:root {
-    --primary: #E97D47;        /* Orange primary */
-    --primary-dark: #D86B38;   /* Darker orange */
-    --primary-light: #F29B71;  /* Lighter orange */
-    --secondary: #2D2D2D;      /* Dark gray */
-    --text-dark: #1A1A1A;      /* Primary text */
-    --text-light: #666666;     /* Secondary text */
-    --bg-light: #FAFAFA;       /* Light background */
-    --bg-white: #FFFFFF;       /* White background */
-}
-```
-
-### Typography
-
-- **Font Family**: Inter (Google Fonts)
-- **Font Weights**: 300, 400, 500, 600, 700, 800, 900
-- **Base Font Size**: 16px
-- **Line Height**: 1.6
-
-### Spacing
-
-- Based on 8px grid system
-- Consistent padding and margins
-- Responsive spacing using clamp()
-
-## 📱 Responsive Breakpoints
-
-- **Mobile**: < 768px
-- **Tablet**: 768px - 1024px  
-- **Desktop**: > 1024px
-- **Large Desktop**: > 1400px
-
-## ♿ Accessibility Features
-
-- Semantic HTML5 elements
-- ARIA labels and roles
-- Keyboard navigation support
-- Screen reader compatibility
-- High contrast mode support
-- Reduced motion preferences
-- Focus indicators
-- Alt text for images
-
-## 🔧 Browser Support
-
-- Chrome 90+
-- Firefox 88+
-- Safari 14+
-- Edge 90+
-
-## 📈 Performance
-
-- Lighthouse Score: 95+ (Performance, Accessibility, Best Practices, SEO)
-- First Contentful Paint: < 1.5s
-- Largest Contentful Paint: < 2.5s
-- Total Blocking Time: < 300ms
-
-## 🚀 Deployment
-
-### Static Hosting
-
-The site can be deployed to any static hosting service:
-
-- **Netlify**: Drag and drop the folder
-- **Vercel**: Connect GitHub repository
-- **GitHub Pages**: Enable in repository settings
-- **Surge.sh**: `surge` command after installing surge CLI
-
-### Build Process
-
-```bash
-npm run build
-```
-
-This creates minified CSS and JavaScript files for production.
-
-## 🧪 Testing
-
-### HTML Validation
-```bash
-npm run validate:html
-```
-
-### CSS Linting
-```bash
-npm run lint:css
-```
-
-### JavaScript Linting
-```bash
-npm run lint:js
-```
-
-### Performance Testing
-```bash
-npm run lighthouse
-```
-
-## 📝 Code Style
-
-- **HTML**: Semantic, properly indented, lowercase attributes
-- **CSS**: BEM methodology, mobile-first, logical properties
-- **JavaScript**: ES6+, modular architecture, camelCase naming
-- **Comments**: Clear, descriptive comments for complex logic
-
-## 🔮 Future Enhancements
-
-- [ ] Add dark mode toggle
-- [ ] Implement service worker for offline support
-- [ ] Add micro-animations with Framer Motion
-- [ ] Integrate with a headless CMS
-- [ ] Add A/B testing capabilities
-- [ ] Implement progressive image loading
-- [ ] Add contact form functionality
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/new-feature`
-3. Commit changes: `git commit -am 'Add new feature'`
-4. Push to branch: `git push origin feature/new-feature`
-5. Submit a pull request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 👥 Team
-
-- **Design**: UI/UX Team
-- **Development**: Frontend Team
-- **Content**: Marketing Team
-
-## 📞 Support
-
-For support, email support@promptcraft.com or join our Discord community.
+</div>
 
 ---
 
-Built with ❤️ for the AI community
+## Table of Contents
+
+- [Overview](#overview)
+- [Tech Stack](#tech-stack)
+- [Project Structure](#project-structure)
+- [Local Development](#local-development)
+- [Deployment](#deployment)
+- [Pages](#pages)
+- [Contributing](#contributing)
+
+---
+
+## Overview
+
+Static landing page showcasing PromptCraft's features, demo video, and installation guide. Built with vanilla HTML/CSS/JS — no frameworks, no build step.
+
+**Live at:** [getpromptcraft.vercel.app](https://getpromptcraft.vercel.app)
+
+---
+
+## Tech Stack
+
+| Tool | Purpose |
+|---|---|
+| HTML5 | Semantic markup |
+| CSS3 | Custom properties, grid, flexbox, animations |
+| Vanilla JS | Splash screen, scroll reveals, particles, mobile nav |
+| [Satoshi](https://www.fontshare.com/fonts/satoshi) | Primary typeface |
+| Vercel | Hosting and deployment |
+
+---
+
+## Project Structure
+
+```
+website/
+├── index.html           # Main landing page
+├── privacy.html         # Privacy policy
+├── og-card.html         # OG image template (screenshot at 1200x630)
+├── vercel.json          # Vercel deployment config
+├── package.json         # Dev dependencies (live-server, linting)
+├── css/
+│   └── styles.css       # All styles (~1600 lines, single file)
+├── js/
+│   └── main.js          # Splash, scroll reveals, particles, nav
+└── assets/
+    ├── demo.mp4         # Extension demo video
+    ├── logo.png         # PromptCraft logo (full)
+    ├── icon128.png      # Logo 128px
+    ├── icon48.png       # Logo 48px (favicon)
+    ├── gemini.png       # Gemini provider logo
+    └── ollama.png       # Ollama provider logo
+```
+
+---
+
+## Local Development
+
+```bash
+# Clone the repo (website branch)
+git clone -b website https://github.com/colingalbraith/PromptCraft.git
+cd PromptCraft
+
+# Install dev dependencies
+npm install
+
+# Start dev server
+npx live-server --port=8742
+```
+
+Open [http://localhost:8742](http://localhost:8742)
+
+No build step needed — edit files and the browser auto-reloads.
+
+---
+
+## Deployment
+
+The site is deployed on Vercel. Any push to the `website` branch triggers a redeploy.
+
+**Manual deploy:**
+```bash
+vercel --prod
+```
+
+**Custom alias:**
+```bash
+vercel alias set <deployment-url> getpromptcraft.vercel.app
+```
+
+---
+
+## Pages
+
+| Page | Path | Description |
+|---|---|---|
+| Landing | `/` | Hero, features, demo video, how it works, CTA |
+| Privacy | `/privacy.html` | Privacy policy for Chrome Web Store compliance |
+| OG Card | `/og-card.html` | Template for social sharing preview image |
+
+---
+
+## Key Sections
+
+### Landing Page (`index.html`)
+
+- **Splash screen** — animated logo, progress bar, rotating tips
+- **Hero** — headline with word-by-word reveal, demo video, CTA buttons
+- **Stats bar** — writing styles, free forever, supported providers
+- **Features** — 6 cards in 3x2 grid with scroll reveal animations
+- **CTA** — 3-step how it works + GitHub link
+- **Footer** — links, logo, copyright
+
+### Design Tokens
+
+```
+Accent:     #D4872E (orange)
+Gold:       #E5A83B
+Teal:       #2A9D8F
+Navy:       #1A2D45
+Background: #F5F0E8 (warm off-white)
+Surface:    #FAF7F2
+```
+
+---
+
+## Contributing
+
+This is the `website` branch of the PromptCraft repo. For extension contributions, see the `Development` branch.
+
+1. Fork the repo
+2. Checkout the `website` branch
+3. Make your changes
+4. Submit a PR to the `website` branch
+
+---
+
+<div align="center">
+
+**Part of the [PromptCraft](https://github.com/colingalbraith/PromptCraft) project**
+
+Built by [Colin Galbraith](https://github.com/colingalbraith)
+
+</div>
