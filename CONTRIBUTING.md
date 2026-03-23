@@ -12,9 +12,9 @@ Thanks for your interest in contributing! Here's how to get started.
 
 ## Branch Structure
 
-- `main` — stable releases
+- `main` — stable releases (do not PR directly)
 - `Development` — active development (submit PRs here)
-- `website` — landing page (getpromptcraft.vercel.app)
+- `website` — landing page, maintained by project owner (do not PR to this branch)
 
 ## What We're Looking For
 
