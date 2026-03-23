@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy — PromptCraft</title>
+    <link rel="icon" type="image/png" href="assets/icon48.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700&display=swap">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Satoshi', 'Inter', system-ui, sans-serif;
+            line-height: 1.7;
+            color: #1A2D45;
+            background: #F5F0E8;
+            padding: 48px 24px;
+        }
+        .container { max-width: 720px; margin: 0 auto; }
+        h1 { font-size: 2rem; font-weight: 800; margin-bottom: 8px; }
+        .updated { font-size: 0.85rem; color: #8A96A4; margin-bottom: 32px; }
+        h2 { font-size: 1.2rem; font-weight: 700; margin-top: 32px; margin-bottom: 8px; }
+        p, li { font-size: 0.95rem; color: #4A5E72; margin-bottom: 12px; }
+        ul { padding-left: 20px; }
+        a { color: #D4872E; }
+        .back { display: inline-block; margin-bottom: 24px; font-size: 0.9rem; font-weight: 600; color: #D4872E; text-decoration: none; }
+        .back:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back">&larr; Back to PromptCraft</a>
+        <h1>Privacy Policy</h1>
+        <p class="updated">Last updated: March 2025</p>
+
+        <h2>Overview</h2>
+        <p>PromptCraft is a Chrome extension that enhances AI prompts. We are committed to protecting your privacy. This policy explains what data we handle and how.</p>
+
+        <h2>Data We Do NOT Collect</h2>
+        <ul>
+            <li>We do not collect, store, or transmit any personal information</li>
+            <li>We do not track your browsing activity</li>
+            <li>We do not use analytics, cookies, or tracking pixels</li>
+            <li>We do not have user accounts or sign-up</li>
+            <li>We do not sell or share any data with third parties</li>
+        </ul>
+
+        <h2>Data Stored Locally</h2>
+        <p>PromptCraft stores the following data on your device using Chrome's built-in storage APIs. This data never leaves your browser:</p>
+        <ul>
+            <li><strong>API Keys</strong> — Your API keys for OpenAI, Gemini, Claude, or custom providers are stored locally on your device only. They are never synced across devices or sent to our servers (we don't have servers).</li>
+            <li><strong>Settings</strong> — Your preferences (selected provider, model, tone) are stored in Chrome's sync storage so they persist across browser sessions.</li>
+            <li><strong>Prompt History</strong> — Your enhancement history (original and enhanced prompts) is stored locally. You can view, export, and delete it at any time.</li>
+            <li><strong>Usage Statistics</strong> — Enhancement counts and estimated token usage are stored locally for your reference.</li>
+        </ul>
+
+        <h2>Third-Party API Calls</h2>
+        <p>When you enhance a prompt, PromptCraft sends your prompt text to the AI provider you configured:</p>
+        <ul>
+            <li><strong>OpenAI</strong> — api.openai.com (governed by <a href="https://openai.com/policies/privacy-policy" target="_blank">OpenAI's Privacy Policy</a>)</li>
+            <li><strong>Google Gemini</strong> — generativelanguage.googleapis.com (governed by <a href="https://policies.google.com/privacy" target="_blank">Google's Privacy Policy</a>)</li>
+            <li><strong>Anthropic Claude</strong> — api.anthropic.com (governed by <a href="https://www.anthropic.com/privacy" target="_blank">Anthropic's Privacy Policy</a>)</li>
+            <li><strong>Ollama</strong> — Runs entirely on your local machine. No data leaves your device.</li>
+            <li><strong>Custom endpoints</strong> — Sent to whatever URL you configure. You are responsible for that provider's privacy practices.</li>
+        </ul>
+        <p>We do not proxy, log, or store any data from these API calls. Your prompts go directly from your browser to the provider.</p>
+
+        <h2>Conversation Context</h2>
+        <p>When the "Use conversation context" feature is enabled, PromptCraft reads recent messages from the AI chat page you're on (e.g., ChatGPT, Claude) to provide context-aware enhancements. This context is sent to your configured AI provider as part of the enhancement request. It is never stored on our servers or shared with anyone else.</p>
+
+        <h2>Permissions</h2>
+        <p>PromptCraft requests the following Chrome permissions:</p>
+        <ul>
+            <li><strong>storage</strong> — To save your settings and history locally</li>
+            <li><strong>activeTab</strong> — To read the current page for conversation context</li>
+            <li><strong>clipboardWrite</strong> — To copy enhanced prompts to your clipboard</li>
+            <li><strong>contextMenus</strong> — To add a right-click "Rewrite with PromptCraft" option</li>
+            <li><strong>tabs, scripting</strong> — To inject the enhancement UI on AI chat sites</li>
+        </ul>
+
+        <h2>Open Source</h2>
+        <p>PromptCraft is fully open source. You can inspect every line of code at <a href="https://github.com/colingalbraith/PromptCraft" target="_blank">github.com/colingalbraith/PromptCraft</a>.</p>
+
+        <h2>Changes</h2>
+        <p>If we update this policy, we'll update the "Last updated" date above. Significant changes will be noted in the GitHub repository.</p>
+
+        <h2>Contact</h2>
+        <p>Questions? Open an issue at <a href="https://github.com/colingalbraith/PromptCraft/issues" target="_blank">github.com/colingalbraith/PromptCraft/issues</a>.</p>
+    </div>
+</body>
+</html>
