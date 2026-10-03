@@ -1,21 +1,42 @@
-// PromptCraft v2.0 — Content Script
-// Injects floating enhance button on AI chat sites + extracts conversation context
+// PromptCraft — Content Script
+// Puts a small badge inside the text box you are writing in. The badge opens a
+// review of the draft (score, weak spots, tone) and offers a rewrite, which is
+// written into the box only when you accept it. On AI chat sites it also reads
+// the conversation for context. On any other page it is injected on demand
+// (context menu or keyboard shortcut).
 
 (function () {
-  const BUTTON_ID = 'promptcraft-button';
-  const PANEL_ID = 'promptcraft-hover-panel';
-  let observer = null;
-  let isProcessing = false;
-  let cachedSettings = null;
+  // The script can arrive from the manifest and from on-demand injection — run once
+  if (window.__promptcraftLoaded) return;
+  window.__promptcraftLoaded = true;
 
-  // Typewriter cancellation
-  let typewriterAbort = null;
+  const HOST_ID = 'promptcraft-root';
+  const IS_CHAT_SITE = detectPlatform() !== null;
+  const SHORTCUT = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘⇧E' : 'Ctrl+Shift+E';
 
-  // Undo state — stores original text per element
+  // Provider label, tone list and selected tone from the background worker.
+  // API keys never reach this script.
+  let publicSettings = null;
+
+  // The text box the badge sits in, and the worker's review of the draft in it
+  let field = null;
+  let review = null;
+
+  // The open card, the rewrite in flight, and the finished rewrite awaiting Accept
+  let card = null;
+  let run = null;
+  let suggestion = null;
+
+  // The last accepted rewrite, for Undo
   let undoState = null;
-  const streamState = { active: false, text: '', el: null };
+
+  // Most recently focused text field, for when focus has moved to our own UI
+  let lastFocusedInput = null;
 
   // ── Word-level Diff (LCS-based) ──────────────────────────────────────────
+
+  // The LCS table is (original tokens × rewritten tokens); beyond this it costs too much memory
+  const MAX_DIFF_CELLS = 4000000;
 
   /**
    * Tokenize text into word tokens preserving whitespace runs.
@@ -56,11 +77,13 @@
 
   /**
    * Back-track the LCS table to produce a diff.
-   * Returns array of { type: 'equal'|'removed'|'added', value: string }
+   * Returns array of { type: 'equal'|'removed'|'added', value: string },
+   * or null when the texts are too long to compare word by word.
    */
   function computeDiff(original, enhanced) {
     const a = diffTokenize(original);
     const b = diffTokenize(enhanced);
+    if ((a.length + 1) * (b.length + 1) > MAX_DIFF_CELLS) return null;
     const { dp, w, m, n } = lcsTable(a, b);
 
     // Back-track
@@ -82,312 +105,612 @@
     return ops;
   }
 
-  // ── Diff Overlay ──────────────────────────────────────────────────────────
+  // ── In-page UI ────────────────────────────────────────────────────────────
+  // Everything PromptCraft draws on a page lives in one shadow root: the site's
+  // CSS can't restyle it, and its CSS can't leak into the site. It follows the
+  // page's light or dark theme and uses the logo's teal and gold.
+
+  const UI_CSS = `
+    :host {
+      --pc-bg: #FFFFFF;
+      --pc-sunken: #F3F5F4;
+      --pc-ink: #15171C;
+      --pc-ink-soft: #5A616B;
+      --pc-line: #E1E4E1;
+      --pc-accent: #064E5B;
+      --pc-accent-wash: rgba(6, 78, 91, 0.08);
+      --pc-action: #064E5B;
+      --pc-gold: #F5BF66;
+      --pc-mark: rgba(245, 191, 102, 0.5);
+      --pc-mark-ink: #15171C;
+      --pc-ok: #1F7A4D;
+      --pc-error: #C2281E;
+      --pc-hover: rgba(21, 23, 28, 0.06);
+      --pc-shadow: 0 12px 32px rgba(21, 23, 28, 0.16), 0 2px 6px rgba(21, 23, 28, 0.08);
+      --pc-scrim: rgba(21, 23, 28, 0.45);
+      --pc-toast: #15171C;
+    }
+    :host([data-theme="dark"]) {
+      --pc-bg: #1B1E24;
+      --pc-sunken: #252930;
+      --pc-ink: #E7E9ED;
+      --pc-ink-soft: #9EA5B0;
+      --pc-line: #333842;
+      --pc-accent: #6FC4CF;
+      --pc-accent-wash: rgba(111, 196, 207, 0.14);
+      --pc-action: #0F7285;
+      --pc-mark: rgba(245, 191, 102, 0.24);
+      --pc-mark-ink: #F8D9A3;
+      --pc-ok: #6FCB98;
+      --pc-error: #FF8A80;
+      --pc-hover: rgba(255, 255, 255, 0.08);
+      --pc-shadow: 0 12px 32px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.35);
+      --pc-scrim: rgba(0, 0, 0, 0.6);
+      --pc-toast: #2D323B;
+    }
+
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    .pc-badge, .pc-card, .pc-toast, .pc-diff {
+      font: 400 13px/1.45 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      color: var(--pc-ink);
+      text-align: left;
+    }
+    button { font: inherit; color: inherit; cursor: pointer; margin: 0; }
+    p { margin: 0; }
+    :focus-visible { outline: 2px solid var(--pc-accent); outline-offset: 2px; }
+
+    /* ── Badge: sits in the corner of the text box ── */
+    .pc-badge {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 26px;
+      height: 26px;
+      padding: 0;
+      border: none;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--pc-action);
+      color: #FFFFFF;
+      box-shadow: 0 1px 4px rgba(21, 23, 28, 0.3);
+      opacity: 0.88;
+      transition: opacity 0.15s ease, box-shadow 0.15s ease;
+    }
+    .pc-badge:hover, .pc-badge[aria-expanded="true"] { opacity: 1; box-shadow: 0 2px 8px rgba(21, 23, 28, 0.35); }
+    .pc-badge svg { width: 14px; height: 14px; }
+    /* How many things the review found */
+    .pc-count {
+      position: absolute;
+      top: -5px;
+      right: -5px;
+      min-width: 15px;
+      height: 15px;
+      padding: 0 4px;
+      border-radius: 8px;
+      background: var(--pc-gold);
+      color: #15171C;
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 15px;
+      text-align: center;
+    }
+    .pc-badge.pc-busy::after, .pc-spinner {
+      content: '';
+      border-radius: 50%;
+      border: 2px solid transparent;
+      border-top-color: var(--pc-gold);
+      animation: pc-spin 0.8s linear infinite;
+    }
+    .pc-badge.pc-busy::after { position: absolute; inset: -4px; }
+    .pc-spinner { width: 18px; height: 18px; flex-shrink: 0; border-color: var(--pc-line); border-top-color: var(--pc-accent); }
+    @keyframes pc-spin { to { transform: rotate(360deg); } }
+
+    /* ── Card: review, rewrite in progress, or suggested rewrite ── */
+    .pc-card {
+      position: fixed;
+      display: flex;
+      flex-direction: column;
+      background: var(--pc-bg);
+      border: 1px solid var(--pc-line);
+      border-radius: 12px;
+      box-shadow: var(--pc-shadow);
+      overflow: hidden;
+      animation: pc-pop 0.14s ease-out;
+    }
+    @keyframes pc-pop { from { opacity: 0; transform: translateY(4px); } }
+    /* Moving from one view to the next: the card is already open, so it doesn't pop in again */
+    .pc-card.pc-steady { animation: none; }
+    .pc-head { display: flex; align-items: center; gap: 10px; padding: 12px 10px 10px 14px; flex-shrink: 0; }
+    .pc-title { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; }
+    .pc-title small { display: block; font-size: 12px; font-weight: 400; color: var(--pc-ink-soft); }
+    .pc-body {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 0 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .pc-actions { display: flex; gap: 8px; padding: 12px 14px; flex-shrink: 0; }
+    .pc-foot {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 9px 14px;
+      flex-shrink: 0;
+      border-top: 1px solid var(--pc-line);
+      background: var(--pc-sunken);
+      font-size: 12px;
+      color: var(--pc-ink-soft);
+    }
+    .pc-end { margin-left: auto; }
+
+    .pc-btn {
+      padding: 7px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--pc-line);
+      background: var(--pc-bg);
+      font-weight: 500;
+      white-space: nowrap;
+      transition: border-color 0.15s ease, background 0.15s ease, filter 0.15s ease;
+    }
+    .pc-btn:hover { border-color: var(--pc-accent); }
+    .pc-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .pc-btn.pc-primary {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border-color: var(--pc-action);
+      background: var(--pc-action);
+      color: #FFFFFF;
+      font-weight: 600;
+    }
+    .pc-btn.pc-primary:hover:not(:disabled) { filter: brightness(1.12); }
+    .pc-btn.pc-small { padding: 3px 10px; font-size: 12px; }
+    kbd { font: inherit; font-size: 11px; font-weight: 400; opacity: 0.75; }
+    .pc-link { padding: 0; border: none; background: none; font-size: 12px; font-weight: 500; color: var(--pc-ink-soft); }
+    .pc-link:hover { color: var(--pc-accent); }
+    .pc-icon-btn {
+      width: 26px;
+      height: 26px;
+      padding: 0;
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      border: none;
+      background: transparent;
+      color: var(--pc-ink-soft);
+      font-size: 13px;
+    }
+    .pc-icon-btn:hover { background: var(--pc-hover); color: var(--pc-ink); }
+
+    /* The score: teal once the draft is in decent shape, gold while it needs work */
+    .pc-ring {
+      position: relative;
+      width: 36px;
+      height: 36px;
+      flex-shrink: 0;
+      display: grid;
+      place-items: center;
+      font-size: 12px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+    .pc-ring svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+    .pc-ring circle { fill: none; stroke-width: 3; }
+    .pc-ring-track { stroke: var(--pc-line); }
+    .pc-ring-value { stroke: var(--pc-accent); stroke-linecap: round; transition: stroke-dasharray 0.3s ease; }
+    .pc-ring.pc-low .pc-ring-value { stroke: var(--pc-gold); }
+    .pc-ring.pc-none .pc-ring-value { display: none; }
+
+    .pc-issues { display: flex; flex-direction: column; gap: 6px; }
+    .pc-issue { display: flex; align-items: flex-start; gap: 10px; padding: 9px 10px; border-radius: 8px; background: var(--pc-sunken); }
+    .pc-issue::before { content: ''; width: 6px; height: 6px; margin-top: 6px; flex-shrink: 0; border-radius: 50%; background: var(--pc-gold); }
+    .pc-issue-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+    .pc-issue-text b { font-weight: 600; }
+    .pc-issue-text span, .pc-note { font-size: 12px; color: var(--pc-ink-soft); }
+    .pc-note.pc-error { color: var(--pc-error); }
+
+    .pc-label { font-size: 12px; font-weight: 600; color: var(--pc-ink-soft); }
+    .pc-tone-row { display: flex; flex-direction: column; gap: 6px; }
+    .pc-tones { display: flex; flex-wrap: wrap; gap: 6px; }
+    .pc-chip {
+      padding: 3px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--pc-line);
+      background: transparent;
+      font-size: 12px;
+      transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+    }
+    .pc-chip:hover { border-color: var(--pc-accent); }
+    .pc-chip[aria-pressed="true"] { border-color: var(--pc-accent); background: var(--pc-accent-wash); color: var(--pc-accent); font-weight: 600; }
+
+    .pc-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--pc-ok); flex-shrink: 0; }
+    .pc-dot.pc-off { background: var(--pc-error); }
+    .pc-provider { flex: 1; min-width: 0; margin-left: -6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* The rewrite itself. It scrolls on its own, so the fields under it stay in view. */
+    .pc-text {
+      max-height: 240px;
+      overflow-y: auto;
+      flex-shrink: 0;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: var(--pc-sunken);
+      font-size: 13px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    .pc-text:empty { min-height: 58px; animation: pc-wait 1.2s ease-in-out infinite; }
+    @keyframes pc-wait { 50% { background: var(--pc-accent-wash); } }
+    .pc-delta {
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--pc-accent-wash);
+      color: var(--pc-accent);
+      font-size: 12px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .pc-blanks { display: flex; flex-direction: column; gap: 6px; }
+    .pc-blank { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--pc-ink-soft); }
+    .pc-blank input {
+      font: inherit;
+      font-size: 13px;
+      width: 100%;
+      padding: 6px 9px;
+      border-radius: 8px;
+      border: 1px solid var(--pc-line);
+      background: var(--pc-bg);
+      color: var(--pc-ink);
+    }
+    .pc-blank input:focus { outline: none; border-color: var(--pc-accent); box-shadow: 0 0 0 3px var(--pc-accent-wash); }
+
+    /* Highlighter for what the rewrite added; a strike for what it dropped */
+    mark.pc-add { background: var(--pc-mark); color: var(--pc-mark-ink); border-radius: 3px; }
+    mark.pc-del { background: none; color: var(--pc-ink-soft); text-decoration: line-through; }
+
+    /* ── Toast ── */
+    .pc-toast {
+      position: fixed;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      max-width: min(420px, calc(100vw - 32px));
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 9px 14px;
+      border-radius: 10px;
+      background: var(--pc-toast);
+      color: #FFFFFF;
+      box-shadow: var(--pc-shadow);
+      overflow-wrap: anywhere;
+      animation: pc-pop 0.14s ease-out;
+    }
+    .pc-toast .pc-link { font-size: 13px; font-weight: 600; color: var(--pc-gold); }
+
+    /* ── Changes dialog ── */
+    .pc-diff {
+      position: fixed;
+      inset: 0;
+      padding: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--pc-scrim);
+    }
+    .pc-diff-modal {
+      width: 100%;
+      max-width: 920px;
+      max-height: 84vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border: 1px solid var(--pc-line);
+      border-radius: 14px;
+      background: var(--pc-bg);
+      box-shadow: var(--pc-shadow);
+    }
+    .pc-diff-head {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px 16px;
+      padding: 14px 14px 14px 20px;
+      border-bottom: 1px solid var(--pc-line);
+    }
+    .pc-diff-title { font-size: 16px; font-weight: 600; }
+    .pc-diff-stats { display: flex; gap: 12px; margin-right: auto; font-size: 12px; color: var(--pc-ink-soft); }
+    .pc-diff-stats b { font-weight: 600; color: var(--pc-ink); }
+    .pc-diff-stats b.pc-add { padding: 0 4px; border-radius: 3px; background: var(--pc-mark); color: var(--pc-mark-ink); }
+    .pc-tabs { display: flex; gap: 6px; }
+    .pc-diff-body {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      padding: 16px 20px;
+      font-size: 13.5px;
+      line-height: 1.65;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    .pc-diff-body.pc-split { display: grid; grid-template-columns: 1fr 1fr; padding: 0; overflow: hidden; }
+    .pc-col { min-height: 0; overflow: auto; padding: 14px 20px 16px; }
+    .pc-col + .pc-col { border-left: 1px solid var(--pc-line); }
+    .pc-col .pc-label { display: block; margin-bottom: 6px; white-space: normal; }
+    .pc-diff-foot {
+      display: flex;
+      justify-content: flex-end;
+      padding: 12px 20px;
+      border-top: 1px solid var(--pc-line);
+      background: var(--pc-sunken);
+    }
+    .pc-diff-foot .pc-btn.pc-primary { flex: none; }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; animation-duration: 0s !important; }
+      .pc-badge.pc-busy::after, .pc-spinner { animation-duration: 1.6s !important; }
+    }
+  `;
+
+  let uiRoot = null;
+
+  function el(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text != null) node.textContent = text;
+    return node;
+  }
+
+  function uiButton(label, className, onClick) {
+    const btn = el('button', className, label);
+    btn.type = 'button';
+    btn.addEventListener('click', onClick);
+    return btn;
+  }
+
+  // Built node by node: some sites forbid assigning HTML strings (Trusted Types)
+  function svg(tag, attrs, ...children) {
+    const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for (const [name, value] of Object.entries(attrs)) node.setAttribute(name, value);
+    node.append(...children);
+    return node;
+  }
+
+  // Chat sites have their own theme switch, so read the page rather than the OS setting
+  function pageIsDark() {
+    for (const node of [document.body, document.documentElement]) {
+      const parts = node && getComputedStyle(node).backgroundColor.match(/[\d.]+/g);
+      if (parts && (parts.length < 4 || Number(parts[3]) > 0.5)) {
+        const [r, g, b] = parts.map(Number);
+        return 0.299 * r + 0.587 * g + 0.114 * b < 128;
+      }
+    }
+    // No background set: the browser paints white unless the page opted into a dark colour scheme
+    const scheme = getComputedStyle(document.documentElement).colorScheme || '';
+    if (!scheme.includes('dark')) return false;
+    return !scheme.includes('light') || window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+
+  // Returns the shadow root, creating (or re-creating) its host element as needed
+  function getUi() {
+    let host = document.getElementById(HOST_ID);
+    if (!host || !uiRoot || uiRoot.host !== host) {
+      if (host) host.remove();
+      host = document.createElement('div');
+      host.id = HOST_ID;
+      // Inline and !important so no site stylesheet can move or hide the host
+      host.style.cssText = 'all: initial !important; display: block !important; position: fixed !important; ' +
+        'top: 0 !important; left: 0 !important; width: 0 !important; height: 0 !important; z-index: 2147483647 !important;';
+      uiRoot = host.attachShadow({ mode: 'open' });
+      uiRoot.appendChild(el('style', '', UI_CSS));
+      (document.body || document.documentElement).appendChild(host);
+    }
+    host.dataset.theme = pageIsDark() ? 'dark' : 'light';
+    return uiRoot;
+  }
+
+  const $ui = (selector) => (uiRoot ? uiRoot.querySelector(selector) : null);
+
+  // Keys typed into our own controls shouldn't trigger the site's shortcuts
+  function keepKeysLocal(node) {
+    for (const type of ['keydown', 'keyup', 'keypress']) {
+      node.addEventListener(type, (e) => e.stopPropagation());
+    }
+  }
+
+  // ── Changes Dialog ────────────────────────────────────────────────────────
+
+  let diffReturnFocus = null;
 
   function removeDiffOverlay() {
-    const existing = document.getElementById('promptcraft-diff-overlay');
-    if (existing) existing.remove();
+    const dialog = $ui('.pc-diff');
+    if (!dialog) return;
+    dialog.remove();
+    document.removeEventListener('keydown', onDiffKeydown, true);
+    if (diffReturnFocus && diffReturnFocus.isConnected) diffReturnFocus.focus();
+    diffReturnFocus = null;
+  }
+
+  // Escape closes; Tab cycles within the dialog
+  function onDiffKeydown(e) {
+    const dialog = $ui('.pc-diff');
+    if (!dialog) return;
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      removeDiffOverlay();
+    } else if (e.key === 'Tab') {
+      const focusable = [...dialog.querySelectorAll('button')];
+      const index = focusable.indexOf(uiRoot.activeElement);
+      const next = e.shiftKey
+        ? (index <= 0 ? focusable.length - 1 : index - 1)
+        : (index === -1 || index === focusable.length - 1 ? 0 : index + 1);
+      e.preventDefault();
+      focusable[next].focus();
+    }
+  }
+
+  // Renders diff operations of the given types, merging neighbouring runs
+  function diffFragment(ops, types) {
+    const frag = document.createDocumentFragment();
+    let piece = null;
+    const flush = () => {
+      if (!piece) return;
+      if (piece.type === 'equal') frag.appendChild(document.createTextNode(piece.text));
+      else frag.appendChild(el('mark', piece.type === 'added' ? 'pc-add' : 'pc-del', piece.text));
+    };
+    const shown = ops.filter(op => types.includes(op.type));
+    shown.forEach((op, i) => {
+      let type = op.type;
+      // A space between two changed words reads better as part of the change than as a gap
+      const next = shown[i + 1];
+      if (type === 'equal' && !op.value.trim() && piece && piece.type !== 'equal' && next && next.type === piece.type) type = piece.type;
+      if (piece && piece.type === type) {
+        piece.text += op.value;
+      } else {
+        flush();
+        piece = { type, text: op.value };
+      }
+    });
+    flush();
+    return frag;
   }
 
   function showDiffOverlay(originalText, enhancedText) {
     removeDiffOverlay();
+    const root = getUi();
+    diffReturnFocus = root.activeElement;
+    const ops = computeDiff(originalText, enhancedText);
+    const countWords = (type) => ops.filter(op => op.type === type && op.value.trim()).length;
 
-    const diff = computeDiff(originalText, enhancedText);
+    const dialog = el('div', 'pc-diff');
+    dialog.setAttribute('role', 'dialog');
+    dialog.setAttribute('aria-modal', 'true');
+    dialog.setAttribute('aria-label', 'Prompt changes');
+    dialog.addEventListener('mousedown', (e) => { if (e.target === dialog) removeDiffOverlay(); });
+    keepKeysLocal(dialog);
 
-    // Count changes for stats
-    let added = 0, removed = 0, unchanged = 0;
-    for (const op of diff) {
-      if (op.type === 'added') added++;
-      else if (op.type === 'removed') removed++;
-      else unchanged++;
+    const modal = el('div', 'pc-diff-modal');
+    const head = el('div', 'pc-diff-head');
+    head.appendChild(el('span', 'pc-diff-title', 'Prompt changes'));
+
+    const stats = el('div', 'pc-diff-stats');
+    if (ops) {
+      const added = el('span');
+      added.append(el('b', 'pc-add', `+${countWords('added')}`), ' added');
+      const removed = el('span');
+      removed.append(el('b', '', `−${countWords('removed')}`), ' removed');
+      const kept = el('span');
+      kept.append(el('b', '', String(countWords('equal'))), ' unchanged');
+      stats.append(added, removed, kept);
+    } else {
+      stats.textContent = 'Too long to highlight individual changes';
     }
-    const totalWords = added + removed + unchanged;
-    const changePercent = totalWords > 0 ? Math.round(((added + removed) / totalWords) * 100) : 0;
+    head.appendChild(stats);
 
-    // Build unified diff HTML — shows all changes inline
-    let unifiedHTML = '';
-    for (const op of diff) {
-      const escaped = op.value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      const display = escaped.replace(/ /g, '&nbsp;').replace(/\n/g, '<br>');
-      if (op.type === 'equal') {
-        unifiedHTML += `<span style="color:rgba(255,255,255,0.85)">${display}</span>`;
-      } else if (op.type === 'removed') {
-        unifiedHTML += `<span style="background:rgba(239,68,68,0.2);color:#fca5a5;text-decoration:line-through;text-decoration-color:rgba(252,165,165,0.5);border-radius:3px;padding:2px 1px">${display}</span>`;
-      } else if (op.type === 'added') {
-        unifiedHTML += `<span style="background:rgba(34,197,94,0.2);color:#86efac;border-radius:3px;padding:2px 1px">${display}</span>`;
-      }
-    }
-
-    // Inject styles
-    if (!document.getElementById('promptcraft-diff-styles')) {
-      const s = document.createElement('style');
-      s.id = 'promptcraft-diff-styles';
-      s.textContent = `
-        @keyframes pc-diff-in { from { opacity:0; transform:scale(0.96) translateY(12px); } to { opacity:1; transform:scale(1) translateY(0); } }
-        @keyframes pc-diff-fade { from { opacity:0; } to { opacity:1; } }
-        .pc-diff-tab { padding:8px 16px; font-size:12px; font-weight:600; border:none; border-radius:8px; cursor:pointer; transition:all 0.2s; font-family:inherit; }
-        .pc-diff-tab:hover { opacity:0.9; }
-        .pc-diff-tab.active { background:rgba(212,135,46,0.2); color:#D4872E; }
-        .pc-diff-tab:not(.active) { background:transparent; color:rgba(255,255,255,0.4); }
-        .pc-diff-scroll::-webkit-scrollbar { width:5px; }
-        .pc-diff-scroll::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.1); border-radius:5px; }
-        .pc-diff-scroll::-webkit-scrollbar-thumb:hover { background:rgba(255,255,255,0.2); }
-      `;
-      document.head.appendChild(s);
-    }
-
-    // Backdrop
-    const overlay = document.createElement('div');
-    overlay.id = 'promptcraft-diff-overlay';
-    Object.assign(overlay.style, {
-      position:'fixed', top:'0', left:'0', width:'100vw', height:'100vh',
-      background:'rgba(0,0,0,0.7)', zIndex:'2147483647',
-      display:'flex', alignItems:'center', justifyContent:'center',
-      fontFamily:"'Satoshi','Inter',system-ui,-apple-system,sans-serif",
-      padding:'24px', boxSizing:'border-box',
-      animation:'pc-diff-fade 0.2s ease',
-    });
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) removeDiffOverlay(); });
-
-    // Modal
-    const modal = document.createElement('div');
-    Object.assign(modal.style, {
-      background:'#12192B', borderRadius:'20px',
-      boxShadow:'0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.06)',
-      width:'100%', maxWidth:'720px', maxHeight:'80vh',
-      display:'flex', flexDirection:'column', overflow:'hidden',
-      animation:'pc-diff-in 0.3s cubic-bezier(0.34,1.56,0.64,1)',
-    });
-
-    // Header
-    const header = document.createElement('div');
-    Object.assign(header.style, {
-      display:'flex', alignItems:'center', justifyContent:'space-between',
-      padding:'18px 24px', borderBottom:'1px solid rgba(255,255,255,0.06)', flexShrink:'0',
-    });
-
-    const titleWrap = document.createElement('div');
-    Object.assign(titleWrap.style, { display:'flex', alignItems:'center', gap:'12px' });
-    titleWrap.innerHTML = `
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D4872E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-      <span style="font-size:15px;font-weight:700;color:rgba(255,255,255,0.95)">Prompt Changes</span>
-      <span style="font-size:11px;font-weight:600;color:#D4872E;background:rgba(212,135,46,0.12);padding:3px 10px;border-radius:100px">${changePercent}% changed</span>
-    `;
-
-    const closeBtn = document.createElement('button');
-    Object.assign(closeBtn.style, {
-      background:'rgba(255,255,255,0.06)', color:'rgba(255,255,255,0.5)', border:'none',
-      borderRadius:'8px', width:'32px', height:'32px', fontSize:'16px', cursor:'pointer',
-      display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s',
-    });
-    closeBtn.innerHTML = '&#10005;';
-    closeBtn.addEventListener('mouseenter', () => { closeBtn.style.background = 'rgba(255,255,255,0.12)'; closeBtn.style.color = 'rgba(255,255,255,0.8)'; });
-    closeBtn.addEventListener('mouseleave', () => { closeBtn.style.background = 'rgba(255,255,255,0.06)'; closeBtn.style.color = 'rgba(255,255,255,0.5)'; });
-    closeBtn.addEventListener('click', removeDiffOverlay);
-
-    header.appendChild(titleWrap);
-    header.appendChild(closeBtn);
-
-    // Stats bar
-    const stats = document.createElement('div');
-    Object.assign(stats.style, {
-      display:'flex', gap:'16px', padding:'12px 24px',
-      borderBottom:'1px solid rgba(255,255,255,0.04)', flexShrink:'0',
-    });
-    const makeStat = (value, label, color) => {
-      const s = document.createElement('div');
-      s.innerHTML = `<span style="font-size:18px;font-weight:800;color:${color};margin-right:4px">${value}</span><span style="font-size:11px;color:rgba(255,255,255,0.4);font-weight:500">${label}</span>`;
-      return s;
+    const body = el('div', 'pc-diff-body');
+    const column = (title, content) => {
+      const col = el('div', 'pc-col');
+      col.append(el('span', 'pc-label', title), content);
+      return col;
     };
-    stats.appendChild(makeStat(`+${added}`, 'added', '#86efac'));
-    stats.appendChild(makeStat(`-${removed}`, 'removed', '#fca5a5'));
-    stats.appendChild(makeStat(unchanged, 'unchanged', 'rgba(255,255,255,0.5)'));
-
-    // Tab bar
-    const tabBar = document.createElement('div');
-    Object.assign(tabBar.style, {
-      display:'flex', gap:'4px', padding:'10px 24px 0', flexShrink:'0',
-    });
-
     const views = {
-      unified: { label: 'Unified', content: null },
-      original: { label: 'Original', content: null },
-      enhanced: { label: 'Enhanced', content: null },
-    };
-
-    // Content area
-    const contentArea = document.createElement('div');
-    contentArea.className = 'pc-diff-scroll';
-    Object.assign(contentArea.style, {
-      flex:'1', padding:'20px 24px', overflowY:'auto', minHeight:'0',
-      fontSize:'14px', lineHeight:'1.8', whiteSpace:'pre-wrap', wordBreak:'break-word',
-    });
-
-    const switchTab = (tabName) => {
-      tabBar.querySelectorAll('.pc-diff-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
-      if (tabName === 'unified') {
-        contentArea.innerHTML = unifiedHTML;
-      } else if (tabName === 'original') {
-        const esc = originalText.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-        contentArea.innerHTML = `<span style="color:rgba(255,255,255,0.85)">${esc.replace(/\n/g,'<br>')}</span>`;
-      } else {
-        const esc = enhancedText.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-        contentArea.innerHTML = `<span style="color:rgba(255,255,255,0.85)">${esc.replace(/\n/g,'<br>')}</span>`;
+      split() {
+        body.classList.add('pc-split');
+        body.replaceChildren(
+          column('Your draft', ops ? diffFragment(ops, ['equal', 'removed']) : originalText),
+          column('Rewrite', ops ? diffFragment(ops, ['equal', 'added']) : enhancedText)
+        );
+      },
+      inline() {
+        body.classList.remove('pc-split');
+        body.replaceChildren(ops ? diffFragment(ops, ['equal', 'removed', 'added']) : enhancedText);
       }
     };
 
-    ['unified', 'original', 'enhanced'].forEach(name => {
-      const tab = document.createElement('button');
-      tab.className = 'pc-diff-tab' + (name === 'unified' ? ' active' : '');
-      tab.textContent = views[name].label;
-      tab.dataset.tab = name;
-      tab.addEventListener('click', () => switchTab(name));
-      tabBar.appendChild(tab);
-    });
-
-    switchTab('unified');
-
-    // Footer
-    const footer = document.createElement('div');
-    Object.assign(footer.style, {
-      display:'flex', alignItems:'center', justifyContent:'space-between',
-      padding:'14px 24px', borderTop:'1px solid rgba(255,255,255,0.06)', flexShrink:'0',
-    });
-
-    // Legend
-    const legend = document.createElement('div');
-    Object.assign(legend.style, { display:'flex', gap:'16px' });
-    const makeLegend = (bg, label) => {
-      const d = document.createElement('div');
-      d.style.display = 'flex'; d.style.alignItems = 'center'; d.style.gap = '6px';
-      d.innerHTML = `<span style="width:10px;height:10px;border-radius:3px;background:${bg};display:inline-block"></span><span style="font-size:11px;color:rgba(255,255,255,0.35)">${label}</span>`;
-      return d;
+    const tabs = el('div', 'pc-tabs');
+    const showView = (name) => {
+      views[name]();
+      tabs.querySelectorAll('.pc-chip').forEach(t => t.setAttribute('aria-pressed', String(t.dataset.view === name)));
     };
-    legend.appendChild(makeLegend('rgba(239,68,68,0.3)', 'Removed'));
-    legend.appendChild(makeLegend('rgba(34,197,94,0.3)', 'Added'));
+    for (const [name, label] of [['split', 'Side by side'], ['inline', 'Inline']]) {
+      const tab = uiButton(label, 'pc-chip', () => showView(name));
+      tab.dataset.view = name;
+      tabs.appendChild(tab);
+    }
+    head.appendChild(tabs);
 
-    // Copy button
-    const copyBtn = document.createElement('button');
-    Object.assign(copyBtn.style, {
-      background:'#D4872E', color:'#fff', border:'none', borderRadius:'8px',
-      padding:'8px 18px', fontSize:'12px', fontWeight:'700', cursor:'pointer',
-      transition:'all 0.15s', fontFamily:'inherit',
-    });
-    copyBtn.textContent = 'Copy Enhanced';
-    copyBtn.addEventListener('mouseenter', () => { copyBtn.style.background = '#C07824'; });
-    copyBtn.addEventListener('mouseleave', () => { copyBtn.style.background = '#D4872E'; });
-    copyBtn.addEventListener('click', () => {
+    const close = uiButton('✕', 'pc-icon-btn', removeDiffOverlay);
+    close.setAttribute('aria-label', 'Close');
+    head.appendChild(close);
+
+    const foot = el('div', 'pc-diff-foot');
+    const copy = uiButton('Copy rewrite', 'pc-btn pc-primary', () => {
       navigator.clipboard.writeText(enhancedText).then(() => {
-        copyBtn.textContent = 'Copied!';
-        setTimeout(() => { copyBtn.textContent = 'Copy Enhanced'; }, 1500);
-      });
+        copy.textContent = 'Copied';
+        setTimeout(() => { copy.textContent = 'Copy rewrite'; }, 1500);
+      }).catch(() => {});
     });
+    foot.appendChild(copy);
 
-    footer.appendChild(legend);
-    footer.appendChild(copyBtn);
+    modal.append(head, body, foot);
+    dialog.appendChild(modal);
+    root.appendChild(dialog);
+    // Two columns need room; on narrow windows start with the inline view
+    showView(window.innerWidth >= 760 ? 'split' : 'inline');
 
-    modal.appendChild(header);
-    modal.appendChild(stats);
-    modal.appendChild(tabBar);
-    modal.appendChild(contentArea);
-    modal.appendChild(footer);
-    overlay.appendChild(modal);
-    document.body.appendChild(overlay);
-
-    // ESC to close
-    const escHandler = (e) => {
-      if (e.key === 'Escape') { removeDiffOverlay(); document.removeEventListener('keydown', escHandler, true); }
-    };
-    document.addEventListener('keydown', escHandler, true);
+    document.addEventListener('keydown', onDiffKeydown, true);
+    close.focus();
   }
 
-  // Helper to clear an input element
-  function clearInput(el) {
-    if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
-      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set
-        || Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-      if (setter) setter.call(el, '');
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-    } else {
-      el.textContent = '';
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-  }
+  // ── Background worker ─────────────────────────────────────────────────────
 
-  // Helper to set input value (used by streaming)
-  function setInputValue(el, value) {
-    if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
-      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set
-        || Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-      if (setter) setter.call(el, value);
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-    } else {
-      el.textContent = value;
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-  }
-
-  // ── Fetch Settings ──────────────────────────────────────────────────────
-
-  function fetchSettings() {
+  // Messages the worker; quietly does nothing once the extension has been reloaded
+  function send(message, onReply) {
     try {
-      chrome.runtime.sendMessage({ action: 'getSettings' }, (resp) => {
+      chrome.runtime.sendMessage(message, (reply) => {
         if (chrome.runtime.lastError) return;
-        if (resp && resp.success) {
-          cachedSettings = resp.settings;
-          updatePanelInfo();
-        }
+        if (onReply) onReply(reply);
       });
     } catch {}
   }
 
-  function getProviderLabel() {
-    if (!cachedSettings) return { provider: '...', model: '...' };
-    const isOllama = cachedSettings.provider === 'ollama';
-    if (isOllama) {
-      return {
-        provider: 'Ollama',
-        model: cachedSettings.ollamaModel || 'llama3'
-      };
-    }
-    const ap = cachedSettings.apiProvider || 'gemini';
-    const names = { openai: 'OpenAI', gemini: 'Gemini', claude: 'Claude' };
-    const modelKeys = {
-      openai: 'openaiModel',
-      gemini: 'geminiModel',
-      claude: 'claudeModel'
-    };
-    return {
-      provider: names[ap] || ap,
-      model: cachedSettings[modelKeys[ap]] || ''
-    };
-  }
-
-  function getModifierLabel() {
-    if (!cachedSettings) return 'Concise';
-    const mod = cachedSettings.lastModifier || 'short';
-    const labels = {
-      short: 'Concise',
-      detailed: 'Detailed',
-      creative: 'Creative',
-      technical: 'Technical',
-      cot: 'Reasoning'
-    };
-    return labels[mod] || mod;
+  function fetchSettings() {
+    send({ action: 'getPublicSettings' }, (reply) => {
+      if (!reply || !reply.success) return;
+      const changed = JSON.stringify(reply.settings) !== JSON.stringify(publicSettings);
+      publicSettings = reply.settings;
+      if (changed) renderSettings();
+    });
   }
 
   // ── Conversation Extraction ───────────────────────────────────────────────
 
   function detectPlatform() {
     const host = window.location.hostname;
-    if (host.includes('chatgpt.com')) return 'ChatGPT';
-    if (host.includes('claude.ai')) return 'Claude';
-    if (host.includes('gemini.google.com')) return 'Gemini';
-    if (host.includes('deepseek.com')) return 'DeepSeek';
-    if (host.includes('perplexity.ai')) return 'Perplexity';
-    if (host.includes('grok.com') || host.includes('x.com')) return 'Grok';
-    if (host.includes('huggingface.co')) return 'HuggingFace';
-    if (host.includes('openrouter.ai')) return 'OpenRouter';
+    // Exact domain match — this script can now run on any site, and a substring
+    // test would treat e.g. netflix.com as x.com
+    const on = (domain) => host === domain || host.endsWith('.' + domain);
+    if (on('chatgpt.com')) return 'ChatGPT';
+    if (on('claude.ai')) return 'Claude';
+    if (on('gemini.google.com')) return 'Gemini';
+    if (on('deepseek.com')) return 'DeepSeek';
+    if (on('perplexity.ai')) return 'Perplexity';
+    if (on('grok.com') || (on('x.com') && window.location.pathname.includes('/grok'))) return 'Grok';
+    if (on('huggingface.co')) return 'HuggingFace';
+    if (on('openrouter.ai')) return 'OpenRouter';
     return null;
   }
 
@@ -778,187 +1101,69 @@
     }
   }
 
-  // ── Toast ───────────────────────────────────────────────────────────────
+  // ── Text Boxes ──────────────────────────────────────────────────────────
 
-  function showToast(message, duration = 3000) {
-    // Remove any existing PromptCraft toast to avoid stacking
-    document.querySelectorAll('.promptcraft-toast').forEach(t => t.remove());
+  // Never read password or other non-text inputs
+  const TEXT_INPUT_TYPES = ['', 'text', 'search', 'url', 'email', 'tel'];
 
-    const toast = document.createElement('div');
-    toast.className = 'promptcraft-toast';
-    toast.textContent = message;
-    Object.assign(toast.style, {
-      position: 'fixed',
-      bottom: '80px',
-      right: '20px',
-      background: '#1a1a2e',
-      color: 'white',
-      padding: '10px 16px',
-      borderRadius: '8px',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-      fontSize: '13px',
-      fontWeight: '500',
-      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.25)',
-      zIndex: '2147483647',
-      opacity: '0',
-      transform: 'translateY(10px)',
-      transition: 'opacity 0.3s ease, transform 0.3s ease',
-      maxWidth: '300px',
-      wordBreak: 'break-word',
-    });
-    document.body.appendChild(toast);
-    requestAnimationFrame(() => {
-      toast.style.opacity = '1';
-      toast.style.transform = 'translateY(0)';
-    });
-    setTimeout(() => {
-      toast.style.opacity = '0';
-      toast.style.transform = 'translateY(10px)';
-      setTimeout(() => toast.remove(), 300);
-    }, duration);
-  }
-
-  // Toast with undo + view changes buttons
-  function showUndoToast() {
-    document.querySelectorAll('.promptcraft-toast').forEach(t => t.remove());
-
-    const toast = document.createElement('div');
-    toast.className = 'promptcraft-toast';
-    Object.assign(toast.style, {
-      position: 'fixed',
-      bottom: '80px',
-      right: '20px',
-      background: '#1a1a2e',
-      color: 'white',
-      padding: '10px 16px',
-      borderRadius: '8px',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-      fontSize: '13px',
-      fontWeight: '500',
-      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.25)',
-      zIndex: '2147483647',
-      opacity: '0',
-      transform: 'translateY(10px)',
-      transition: 'opacity 0.3s ease, transform 0.3s ease',
-      maxWidth: '400px',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '10px',
-    });
-
-    const label = document.createElement('span');
-    label.textContent = 'Prompt enhanced!';
-
-    const btnStyle = {
-      borderRadius: '4px',
-      padding: '3px 10px',
-      fontSize: '12px',
-      fontWeight: '600',
-      cursor: 'pointer',
-      flexShrink: '0',
-      border: '1px solid',
-    };
-
-    const diffBtn = document.createElement('button');
-    diffBtn.textContent = 'View changes';
-    Object.assign(diffBtn.style, {
-      ...btnStyle,
-      background: 'rgba(232, 98, 30, 0.2)',
-      color: '#E8621E',
-      borderColor: 'rgba(232, 98, 30, 0.4)',
-    });
-    diffBtn.addEventListener('click', () => {
-      if (undoState && undoState.enhanced) {
-        showDiffOverlay(undoState.text, undoState.enhanced);
-      }
-    });
-
-    const undoBtn = document.createElement('button');
-    undoBtn.textContent = 'Undo';
-    Object.assign(undoBtn.style, {
-      ...btnStyle,
-      background: 'rgba(245, 200, 66, 0.2)',
-      color: '#F5C842',
-      borderColor: 'rgba(245, 200, 66, 0.4)',
-    });
-    undoBtn.addEventListener('click', () => {
-      handleUndo();
-      toast.remove();
-    });
-
-    toast.appendChild(label);
-    toast.appendChild(diffBtn);
-    toast.appendChild(undoBtn);
-    document.body.appendChild(toast);
-
-    requestAnimationFrame(() => {
-      toast.style.opacity = '1';
-      toast.style.transform = 'translateY(0)';
-    });
-
-    // Auto-dismiss after 8 seconds
-    setTimeout(() => {
-      toast.style.opacity = '0';
-      toast.style.transform = 'translateY(10px)';
-      setTimeout(() => toast.remove(), 300);
-    }, 8000);
-  }
-
-  // ── Undo ────────────────────────────────────────────────────────────────
-
-  function handleUndo() {
-    if (!undoState) {
-      showToast('Nothing to undo');
-      return;
+  function isEditable(el) {
+    // Our own controls (the blanks in a suggestion) are never the user's text box
+    if (!el || el.nodeType !== 1 || (uiRoot && el.getRootNode() === uiRoot)) return false;
+    if (el.tagName === 'TEXTAREA') return !el.readOnly && !el.disabled;
+    if (el.tagName === 'INPUT') {
+      return TEXT_INPUT_TYPES.includes((el.getAttribute('type') || '').toLowerCase()) && !el.readOnly && !el.disabled;
     }
-    const { el, text } = undoState;
-    setTextDirect(el, text);
-    undoState = null;
-    showToast('Reverted to original');
+    return el.isContentEditable;
   }
 
-  // ── Find Text Input ─────────────────────────────────────────────────────
+  // Follows focus through shadow roots to the element that really has it
+  function deepActiveElement() {
+    let el = document.activeElement;
+    while (el && el.shadowRoot && el.shadowRoot.activeElement) el = el.shadowRoot.activeElement;
+    return el;
+  }
 
-  function findTextInput() {
-    const active = document.activeElement;
-    if (active && (active.tagName === 'TEXTAREA' || active.tagName === 'INPUT' || active.isContentEditable)) {
-      return active;
-    }
-    const selectors = [
-      'textarea',
-      'div[contenteditable="true"]',
-      '[role="textbox"]',
-      '.ProseMirror',
-    ];
-    for (const sel of selectors) {
-      const elems = document.querySelectorAll(sel);
-      for (const el of elems) {
-        if (el.offsetParent !== null) return el;
+  // For rich editors, the outermost editable element is the one to read and write
+  function editingHost(el) {
+    let host = el;
+    while (host.isContentEditable && host.parentElement && host.parentElement.isContentEditable) host = host.parentElement;
+    return host;
+  }
+
+  // A chat site's prompt box: the first visible multi-line editor
+  function findPromptBox() {
+    for (const selector of ['textarea', 'div[contenteditable="true"]', '[role="textbox"]', '.ProseMirror']) {
+      for (const node of document.querySelectorAll(selector)) {
+        if (node.offsetParent !== null && isEditable(node)) return node;
       }
     }
     return null;
   }
 
-  function getTextFromElement(el) {
-    if (!el) return '';
-    return el.value || el.textContent || '';
+  // The text box an action applies to: the focused one, else the last one used
+  function findTextInput() {
+    const active = deepActiveElement();
+    if (isEditable(active)) return editingHost(active);
+    if (lastFocusedInput && lastFocusedInput.isConnected && isEditable(lastFocusedInput)) return lastFocusedInput;
+    // Outside chat sites there is no obvious prompt box, so don't guess
+    return IS_CHAT_SITE ? findPromptBox() : null;
   }
 
-  // ── Text Insertion (framework-aware) ────────────────────────────────────
+  function getTextFromElement(el) {
+    if (!el) return '';
+    if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') return el.value || '';
+    // innerText keeps the line breaks between paragraphs; textContent would run them together
+    return el.innerText || el.textContent || '';
+  }
 
-  // Direct set (no animation) — used for undo and fallback
+  // Replaces the whole content in one edit, in a way the site's framework notices
   function setTextDirect(el, text) {
     if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
-      // Use native setter to bypass React's synthetic events
-      const nativeSetter = Object.getOwnPropertyDescriptor(
-        el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype,
-        'value'
-      )?.set;
-      if (nativeSetter) {
-        nativeSetter.call(el, text);
-      } else {
-        el.value = text;
-      }
+      // The native setter gets past React's own value tracking
+      const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      const nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+      if (nativeSetter) nativeSetter.call(el, text);
+      else el.value = text;
       el.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
     } else if (el.isContentEditable) {
       el.focus();
@@ -974,596 +1179,693 @@
       }
       document.execCommand('insertText', false, text);
     }
+    el.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
   }
 
-  // Insert a chunk of text at the end of a contentEditable
-  function appendToContentEditable(el, chunk) {
-    el.focus();
-    const sel = window.getSelection();
-    if (sel) {
-      // Move cursor to end
-      if (el.lastChild) {
-        const range = document.createRange();
-        range.selectNodeContents(el);
-        range.collapse(false); // collapse to end
-        sel.removeAllRanges();
-        sel.addRange(range);
-      }
+  // ── Toast ───────────────────────────────────────────────────────────────
+
+  let toastTimer = null;
+
+  // A short message at the top of the page, optionally with one action (e.g. Undo)
+  function showToast(message, duration = 3500, action = null) {
+    const root = getUi();
+    const old = $ui('.pc-toast');
+    if (old) old.remove();
+    clearTimeout(toastTimer);
+
+    const toast = el('div', 'pc-toast');
+    toast.setAttribute('role', 'status');
+    toast.appendChild(el('span', '', message));
+    if (action) {
+      toast.appendChild(uiButton(action.label, 'pc-link', () => {
+        toast.remove();
+        action.run();
+      }));
     }
-    document.execCommand('insertText', false, chunk);
+    root.appendChild(toast);
+    toastTimer = setTimeout(() => toast.remove(), duration);
   }
 
-  // ── Animated text replacement with highlight + typewriter ───────────────
+  // ── Badge ───────────────────────────────────────────────────────────────
+  // Follows the text box in use: the focused one, or on chat sites the prompt
+  // box whether focused or not. syncBadge() is the one place that derives the
+  // badge's position and state, and it runs at most once per frame.
 
-  function injectHighlightStyles() {
-    if (document.getElementById('promptcraft-highlight-styles')) return;
-    const s = document.createElement('style');
-    s.id = 'promptcraft-highlight-styles';
-    s.textContent = `
-      @keyframes promptcraft-glow {
-        0%, 100% { outline-color: rgba(232, 98, 30, 0.5); box-shadow: 0 0 8px rgba(232, 98, 30, 0.15); }
-        50% { outline-color: rgba(245, 200, 66, 0.7); box-shadow: 0 0 20px rgba(245, 200, 66, 0.25); }
-      }
-      @keyframes promptcraft-scan {
-        0%   { left: -40%; }
-        100% { left: 100%; }
-      }
-      .promptcraft-highlight {
-        outline: 2.5px solid rgba(232, 98, 30, 0.5) !important;
-        outline-offset: 2px !important;
-        animation: promptcraft-glow 1s ease-in-out infinite !important;
-      }
-      .promptcraft-analyzing {
-        position: relative !important;
-      }
-      .promptcraft-scan-overlay {
-        position: absolute !important;
-        top: 0 !important;
-        left: -40% !important;
-        width: 40% !important;
-        height: 100% !important;
-        background: linear-gradient(90deg,
-          transparent,
-          rgba(245, 200, 66, 0.15),
-          rgba(232, 98, 30, 0.12),
-          rgba(245, 200, 66, 0.15),
-          transparent
-        ) !important;
-        animation: promptcraft-scan 1.5s ease-in-out infinite !important;
-        pointer-events: none !important;
-        z-index: 10000 !important;
-        border-radius: inherit !important;
-      }
-      .promptcraft-highlight-fade {
-        outline: 2.5px solid transparent !important;
-        outline-offset: 2px !important;
-        animation: none !important;
-        transition: outline-color 0.5s ease, box-shadow 0.5s ease !important;
-        box-shadow: none !important;
-      }
-    `;
-    document.head.appendChild(s);
+  const BADGE_SIZE = 26;
+  const BADGE_INSET = 6;
+  const CARD_WIDTH = 340;
+  const CARD_GAP = 8;
+
+  let syncQueued = false;
+  let lastFieldSearch = 0;
+  let searchTimer = null;
+  let reviewTimer = null;
+  const fieldResize = new ResizeObserver(queueSync);
+
+  function queueSync() {
+    if (syncQueued) return;
+    syncQueued = true;
+    requestAnimationFrame(syncBadge);
   }
 
-  // Find the best visible element to highlight — walk up to find a styled wrapper
-  function getHighlightTarget(el) {
-    if (el.isContentEditable) {
-      // Walk up to 3 parents to find a wrapper with visible borders/rounding
-      let node = el.parentElement;
-      for (let i = 0; i < 3 && node && node !== document.body; i++) {
-        const ps = getComputedStyle(node);
-        if (ps.borderRadius !== '0px' || ps.borderWidth !== '0px' ||
-            (ps.backgroundColor !== 'rgba(0, 0, 0, 0)' && ps.backgroundColor !== 'transparent')) {
-          return node;
-        }
-        node = node.parentElement;
-      }
+  function createBadge() {
+    const badge = el('button', 'pc-badge');
+    badge.type = 'button';
+    badge.setAttribute('aria-label', 'Review this prompt with PromptCraft');
+    badge.setAttribute('aria-haspopup', 'dialog');
+    // The stacked-layers mark the in-page button has always used
+    badge.append(
+      svg('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2.2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' },
+        svg('path', { d: 'M12 2L2 7l10 5 10-5-10-5z' }),
+        svg('path', { d: 'M2 17l10 5 10-5' }),
+        svg('path', { d: 'M2 12l10 5 10-5' })),
+      el('span', 'pc-count')
+    );
+    // Keep focus in the text box while the badge is clicked
+    badge.addEventListener('mousedown', (e) => e.preventDefault());
+    badge.addEventListener('click', () => {
+      if (card) closeCard();
+      else showReview();
+    });
+    // Settings can change in the side panel, and the site's theme can be switched, at any time
+    badge.addEventListener('mouseenter', () => {
+      getUi();
+      fetchSettings();
+    });
+    getUi().appendChild(badge);
+    return badge;
+  }
+
+  // Which text box the badge belongs in right now
+  function pickField() {
+    // A card stays with its text box until it closes
+    if (card && field && field.isConnected) return field;
+    const active = deepActiveElement();
+    if (isEditable(active)) return editingHost(active);
+    if (!IS_CHAT_SITE) return null;
+    // On chat sites the prompt box is the point, focused or not
+    const isPromptBox = (node) => !!node && node.tagName !== 'INPUT' && node.isConnected && node.getClientRects().length > 0;
+    if (isPromptBox(field)) return field;
+    if (isPromptBox(lastFocusedInput)) return lastFocusedInput;
+    // The search walks the page, so pages that re-render constantly get it twice a second at most
+    if (Date.now() - lastFieldSearch < 500) {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(queueSync, 500);
+      return null;
     }
-    return el;
+    lastFieldSearch = Date.now();
+    return findPromptBox();
   }
 
-  // Add a real DOM overlay element for the scanning shimmer (not ::after, which fails on contentEditable)
-  let scanOverlay = null;
-  function addScanOverlay(targetEl) {
-    removeScanOverlay();
-    targetEl.classList.add('promptcraft-analyzing');
-    scanOverlay = document.createElement('div');
-    scanOverlay.className = 'promptcraft-scan-overlay';
-    targetEl.appendChild(scanOverlay);
+  function setField(next) {
+    fieldResize.disconnect();
+    field = next;
+    review = null;
+    if (!next) return;
+    fieldResize.observe(next);
+    requestReview(0);
   }
-  function removeScanOverlay() {
-    if (scanOverlay) {
-      scanOverlay.remove();
-      scanOverlay = null;
+
+  function wantsBadge(rect) {
+    if (rect.width < 140 || rect.height < 24) return false;
+    if (card) return true;
+    // Single-line inputs are searches and form fields; the shortcut still works in them
+    if (field.tagName === 'INPUT') return false;
+    // Outside chat sites, stay out of the way until there is a draft to review
+    return IS_CHAT_SITE || (!!review && review.text.length > 0);
+  }
+
+  function syncBadge() {
+    syncQueued = false;
+    // The site rebuilt the page under an open card
+    if (card && !card.isConnected) dropCard();
+
+    const next = pickField();
+    if (next !== field) setField(next);
+
+    let badge = $ui('.pc-badge');
+    const rect = field ? field.getBoundingClientRect() : null;
+    if (!rect || !wantsBadge(rect)) {
+      if (badge) badge.hidden = true;
+      if (card) closeCard();
+      return;
     }
-    document.querySelectorAll('.promptcraft-analyzing').forEach(el => {
-      el.classList.remove('promptcraft-analyzing');
+    if (!badge || !badge.isConnected) badge = createBadge();
+
+    // Bottom-right corner of the box (clear of its scrollbar); centred in a single-line box
+    const gutter = field.offsetWidth - field.clientWidth;
+    const x = Math.min(rect.right, window.innerWidth) - gutter - BADGE_SIZE - BADGE_INSET;
+    const y = rect.height < 44
+      ? rect.top + (rect.height - BADGE_SIZE) / 2
+      : Math.min(rect.bottom, window.innerHeight) - BADGE_SIZE - BADGE_INSET;
+    const where = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+    if (badge.style.transform !== where) badge.style.transform = where;
+    badge.hidden = rect.bottom < BADGE_SIZE || rect.top > window.innerHeight - BADGE_SIZE;
+
+    const count = !run && review ? review.issues.length : 0;
+    const counter = badge.querySelector('.pc-count');
+    counter.hidden = count === 0;
+    counter.textContent = String(count);
+    badge.classList.toggle('pc-busy', !!run);
+    badge.setAttribute('aria-expanded', String(!!card));
+
+    if (card) placeCard(rect);
+  }
+
+  // Beside the text box, never over it: above when there is room (chat boxes
+  // sit at the bottom of the window), otherwise below. A box that fills the
+  // window gets the card inside its bottom corner instead.
+  function placeCard(rect) {
+    const width = Math.min(CARD_WIDTH, window.innerWidth - 16);
+    const left = Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8));
+    const above = rect.top - CARD_GAP - 8;
+    const below = window.innerHeight - rect.bottom - CARD_GAP - 8;
+    const room = Math.max(above, below);
+
+    let top = '';
+    let bottom = '';
+    if (room < 200) bottom = `${window.innerHeight - Math.min(rect.bottom, window.innerHeight) + BADGE_SIZE + BADGE_INSET * 2}px`;
+    else if (above >= 320 || above >= below) bottom = `${window.innerHeight - rect.top + CARD_GAP}px`;
+    else top = `${rect.bottom + CARD_GAP}px`;
+
+    Object.assign(card.style, {
+      width: `${width}px`,
+      left: `${left}px`,
+      top,
+      bottom,
+      maxHeight: `${Math.min(520, room < 200 ? window.innerHeight - 80 : room)}px`
     });
   }
 
-  function cancelTypewriter() {
-    if (typewriterAbort) {
-      typewriterAbort.cancelled = true;
-      typewriterAbort = null;
+  // Asks the worker to score the draft. Local heuristics only, so it can follow typing.
+  function requestReview(delay = 350) {
+    clearTimeout(reviewTimer);
+    reviewTimer = setTimeout(() => {
+      const target = field;
+      if (!target || !target.isConnected) return;
+      const text = getTextFromElement(target).trim();
+      if (review && review.text === text) return;
+      const apply = (score, issues) => {
+        if (field !== target) return;
+        review = { text, score, issues };
+        updateReview();
+        queueSync();
+      };
+      if (!text) apply(null, []);
+      else send({ action: 'analyzeDraft', text }, (reply) => { if (reply && reply.success) apply(reply.score ?? null, reply.issues || []); });
+    }, delay);
+  }
+
+  // ── Cards ───────────────────────────────────────────────────────────────
+  // One card at a time, anchored to the text box. Its `view` is one of:
+  // review (opened from the badge), working, suggestion, problem.
+
+  function openCard(view) {
+    const root = getUi();
+    const replacing = !!card;
+    if (card) card.remove();
+    card = el('div', replacing ? 'pc-card pc-steady' : 'pc-card');
+    card.dataset.view = view;
+    card.setAttribute('role', 'dialog');
+    card.setAttribute('aria-label', 'PromptCraft');
+    keepKeysLocal(card);
+    root.appendChild(card);
+    return card;
+  }
+
+  // Forgets the card and anything in progress, without touching the text box
+  function dropCard() {
+    if (run) endRun(run);
+    suggestion = null;
+    if (card) card.remove();
+    card = null;
+  }
+
+  function closeCard() {
+    dropCard();
+    queueSync();
+  }
+
+  function dismissCard() {
+    const target = field;
+    closeCard();
+    if (target && target.isConnected) target.focus({ preventScroll: true });
+  }
+
+  function closeButton() {
+    const close = uiButton('✕', 'pc-icon-btn', dismissCard);
+    close.setAttribute('aria-label', 'Close');
+    return close;
+  }
+
+  function scoreRing() {
+    const ring = el('span', 'pc-ring pc-none');
+    ring.title = 'Prompt quality score (0-100)';
+    ring.append(
+      svg('svg', { viewBox: '0 0 36 36', 'aria-hidden': 'true' },
+        svg('circle', { class: 'pc-ring-track', cx: '18', cy: '18', r: '15.5' }),
+        svg('circle', { class: 'pc-ring-value', cx: '18', cy: '18', r: '15.5', pathLength: '100', 'stroke-dasharray': '0 100' })),
+      el('b', '', '–')
+    );
+    return ring;
+  }
+
+  // ── Review card ─────────────────────────────────────────────────────────
+  // The draft's score, its weakest spots (each with a one-click fix), the
+  // tone, and the button that asks for a full rewrite.
+
+  function showReview() {
+    const node = openCard('review');
+
+    const head = el('div', 'pc-head');
+    const title = el('div', 'pc-title', 'Prompt review');
+    title.appendChild(el('small'));
+    head.append(scoreRing(), title, closeButton());
+
+    const body = el('div', 'pc-body');
+    const tone = el('div', 'pc-tone-row');
+    const tones = el('div', 'pc-tones');
+    tones.setAttribute('role', 'group');
+    tones.setAttribute('aria-label', 'Tone');
+    tone.append(el('span', 'pc-label', 'Tone'), tones);
+    body.append(el('div', 'pc-issues'), tone);
+
+    const actions = el('div', 'pc-actions');
+    const improve = uiButton('Improve prompt', 'pc-btn pc-primary', () => startEnhance());
+    improve.appendChild(el('kbd', '', SHORTCUT));
+    actions.appendChild(improve);
+
+    const foot = el('div', 'pc-foot');
+    foot.append(el('span', 'pc-dot'), el('span', 'pc-provider'), uiButton('Open panel', 'pc-link', openPanel));
+
+    node.append(head, body, actions, foot);
+    updateReview();
+    renderSettings();
+    syncBadge();
+    fetchSettings();
+  }
+
+  // Fills the review card from the latest review of the draft
+  function updateReview() {
+    if (!card || card.dataset.view !== 'review') return;
+    const hasText = !!review && review.text.length > 0;
+    const issues = hasText ? review.issues : [];
+
+    const ring = card.querySelector('.pc-ring');
+    const score = hasText ? review.score : null;
+    ring.classList.toggle('pc-none', score === null);
+    ring.classList.toggle('pc-low', score !== null && score < 50);
+    ring.querySelector('.pc-ring-value').setAttribute('stroke-dasharray', `${score || 0} 100`);
+    ring.querySelector('b').textContent = score === null ? '–' : String(score);
+
+    card.querySelector('.pc-title small').textContent = !review ? 'Reading your draft…'
+      : !hasText ? 'Nothing to review yet'
+      : issues.length === 0 ? 'No obvious gaps'
+      : issues.length === 1 ? '1 thing to improve'
+      : `${issues.length} things to improve`;
+
+    const list = card.querySelector('.pc-issues');
+    list.replaceChildren();
+    if (review && !hasText) {
+      list.appendChild(el('p', 'pc-note', 'Write your prompt in the box and PromptCraft will point out what is missing.'));
     }
+    for (const issue of issues) {
+      const row = el('div', 'pc-issue');
+      const text = el('div', 'pc-issue-text');
+      text.append(el('b', '', issue.title), el('span', '', issue.detail));
+      const fix = uiButton('Fix', 'pc-btn pc-small', () => startEnhance({ focus: issue.id }));
+      fix.setAttribute('aria-label', `Fix: ${issue.title}`);
+      row.append(text, fix);
+      list.appendChild(row);
+    }
+    list.hidden = list.childElementCount === 0;
+    card.querySelector('.pc-primary').disabled = !hasText;
   }
 
-  function setTextAnimated(el, text) {
-    cancelTypewriter();
-    injectHighlightStyles();
-
-    return new Promise((resolve, reject) => {
-      const highlightEl = getHighlightTarget(el);
-      const abort = { cancelled: false };
-      typewriterAbort = abort;
-
-      // Ensure pulsing glow is active
-      highlightEl.classList.remove('promptcraft-highlight-fade');
-      highlightEl.classList.add('promptcraft-highlight');
-
-      // Clear existing text
-      el.focus();
-      if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
-        const nativeSetter = Object.getOwnPropertyDescriptor(
-          el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype,
-          'value'
-        )?.set;
-        if (nativeSetter) nativeSetter.call(el, '');
-        else el.value = '';
-        el.dispatchEvent(new Event('input', { bubbles: true }));
-      } else if (el.isContentEditable) {
-        // Select all content via Range API, then replace with nothing
-        const sel = window.getSelection();
-        if (sel) {
-          const range = document.createRange();
-          range.selectNodeContents(el);
-          sel.removeAllRanges();
-          sel.addRange(range);
-        }
-        // Use insertText('') to clear — ProseMirror intercepts this properly
-        document.execCommand('insertText', false, '');
-        // Fallback: if content still exists, force clear via innerHTML
-        if (el.textContent.trim().length > 0) {
-          el.innerHTML = '';
-          el.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-      }
-
-      // Typewriter
-      let i = 0;
-      const len = text.length;
-      const charDelay = Math.max(2, Math.min(12, Math.floor(800 / len)));
-      const batch = charDelay <= 3 ? Math.ceil(len / 80) : 1;
-
-      function tick() {
-        if (abort.cancelled) {
-          reject(new Error('cancelled'));
-          return;
-        }
-
-        const end = Math.min(i + batch, len);
-        const chunk = text.slice(i, end);
-
-        if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
-          const nativeSetter = Object.getOwnPropertyDescriptor(
-            el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype,
-            'value'
-          )?.set;
-          if (nativeSetter) nativeSetter.call(el, el.value + chunk);
-          else el.value += chunk;
-          el.dispatchEvent(new Event('input', { bubbles: true }));
-        } else if (el.isContentEditable) {
-          appendToContentEditable(el, chunk);
-        }
-
-        i = end;
-
-        if (i < len) {
-          setTimeout(tick, charDelay);
-        } else {
-          typewriterAbort = null;
-          el.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-          el.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
-
-          // Fade highlight out
-          setTimeout(() => {
-            highlightEl.classList.remove('promptcraft-highlight');
-            highlightEl.classList.add('promptcraft-highlight-fade');
-            setTimeout(() => {
-              highlightEl.classList.remove('promptcraft-highlight-fade');
-            }, 600);
-          }, 400);
-
-          resolve();
-        }
-      }
-
-      // Brief pause so glow is visible before typing starts
-      setTimeout(tick, 300);
-    });
+  // Fills the review card's tone chips and provider line from the worker's settings
+  function renderSettings() {
+    if (!card || card.dataset.view !== 'review') return;
+    const tones = card.querySelector('.pc-tones');
+    tones.replaceChildren();
+    for (const style of publicSettings?.styles || []) {
+      const chip = uiButton(style.label, 'pc-chip', () => selectTone(style.id));
+      chip.dataset.tone = style.id;
+      chip.setAttribute('aria-pressed', String(style.id === publicSettings.modifier));
+      tones.appendChild(chip);
+    }
+    const ready = !!publicSettings && publicSettings.ready;
+    card.querySelector('.pc-dot').classList.toggle('pc-off', !!publicSettings && !ready);
+    card.querySelector('.pc-provider').textContent = !publicSettings ? '…'
+      : ready ? `${publicSettings.providerLabel} · ${publicSettings.model}`
+      : `${publicSettings.providerLabel} is not set up`;
   }
 
-  // ── Button Click Handler ────────────────────────────────────────────────
+  function selectTone(id) {
+    if (!publicSettings) return;
+    publicSettings.modifier = id;
+    card.querySelectorAll('.pc-chip[data-tone]').forEach(chip => chip.setAttribute('aria-pressed', String(chip.dataset.tone === id)));
+    send({ action: 'setModifier', modifier: id });
+  }
 
-  function handleButtonClick() {
-    if (isProcessing) return;
+  // Provider setup, history and templates live in the side panel
+  function openPanel() {
+    send({ action: 'openPanel' });
+  }
 
-    const inputEl = findTextInput();
-    if (!inputEl) {
-      showToast('No text input found on this page');
+  // ── Rewrite ─────────────────────────────────────────────────────────────
+  // Opens a port to the background worker, which streams the rewrite back into
+  // the card. Disconnecting the port cancels the request. The text box is not
+  // touched until the user accepts.
+
+  const STAGE_LABELS = {
+    analyzing: 'Reading your draft…',
+    generating: 'Writing…',
+    structuring: 'Structuring…',
+    polishing: 'Polishing…'
+  };
+
+  // options.focus: fix one weakness only. options.refine: another pass over the current suggestion.
+  function startEnhance(options = {}) {
+    if (run) return;
+
+    const base = options.refine && suggestion ? suggestion : null;
+    const inputEl = base ? base.inputEl : (card && field ? field : findTextInput());
+    if (!inputEl || !inputEl.isConnected) {
+      showToast(IS_CHAT_SITE ? 'No text box found on this page' : 'Click into a text box first, then try again');
       return;
     }
 
-    const text = getTextFromElement(inputEl).trim();
-    if (!text) {
-      showToast('Please enter text to enhance');
+    // Another pass re-works the user's own draft, not the previous rewrite
+    const original = base ? base.original : getTextFromElement(inputEl).trim();
+    if (!original) {
+      showToast('Type a prompt first');
       return;
     }
 
-    // Save original text for undo
-    undoState = { el: inputEl, text };
-
-    const modifier = cachedSettings?.lastModifier || 'short';
-    const context = extractPageConversation(text);
-
-    isProcessing = true;
-    cancelTypewriter();
-    injectHighlightStyles();
-    const btn = document.getElementById(BUTTON_ID);
-    const highlightEl = getHighlightTarget(inputEl);
-
-    // Loading state — glow + scanning shimmer on the input box
-    highlightEl.classList.add('promptcraft-highlight');
-    addScanOverlay(highlightEl);
-    if (btn) {
-      btn.style.background = 'conic-gradient(from 0deg, #E8621E, #FF9F43, #F5C842, #E8621E)';
-      btn.style.animation = 'promptcraft-spin 1s linear infinite';
-    }
-
-    function resetBtn() {
-      if (btn) {
-        btn.style.background = 'linear-gradient(135deg, #F5C842, #E8621E)';
-        btn.style.animation = '';
-      }
-    }
-    function stopAnalyzing() {
-      removeScanOverlay();
-    }
-    function removeGlow() {
-      stopAnalyzing();
-      highlightEl.classList.remove('promptcraft-highlight');
-      highlightEl.classList.add('promptcraft-highlight-fade');
-      setTimeout(() => highlightEl.classList.remove('promptcraft-highlight-fade'), 600);
-    }
-
+    let port;
     try {
-      chrome.runtime.sendMessage(
-        { action: 'enhance', prompt: text, modifier, context },
-        (response) => {
-          isProcessing = false;
-          resetBtn();
-          stopAnalyzing();
+      port = chrome.runtime.connect({ name: 'enhance' });
+    } catch {
+      showToast('PromptCraft was updated. Reload this page to keep using it.', 5000);
+      return;
+    }
 
-          if (chrome.runtime.lastError) {
-            removeGlow();
-            showToast('Error: ' + (chrome.runtime.lastError.message || 'Connection failed'));
-            return;
-          }
+    if (!base) suggestion = null;
+    if (field !== inputEl) setField(inputEl);
+    const stale = $ui('.pc-toast');
+    if (stale) stale.remove();
+    const current = { port, inputEl, original, options, finished: false };
+    run = current;
+    showWorking();
 
-          if (response && response.success && response.text) {
-            // Store enhanced text for diff view
-            undoState.enhanced = response.text;
-            setTextAnimated(inputEl, response.text).then(() => {
-              showUndoToast();
-            }).catch((err) => {
-              if (err?.message === 'cancelled') return;
-              removeGlow();
-              // Fallback: set directly without animation
-              try {
-                setTextDirect(inputEl, response.text);
-                showUndoToast();
-              } catch {
-                navigator.clipboard.writeText(response.text).then(() => {
-                  showToast('Enhanced prompt copied to clipboard');
-                }).catch(() => {
-                  showToast('Enhancement done but could not update field');
-                });
-              }
-            });
-          } else {
-            removeGlow();
-            undoState = null;
-            const err = response?.error || 'Enhancement failed';
-            showToast(err);
-          }
-        }
-      );
-    } catch (err) {
-      isProcessing = false;
-      resetBtn();
-      removeGlow();
-      undoState = null;
-      showToast('Failed to connect to PromptCraft');
+    port.onMessage.addListener((msg) => {
+      if (current.finished) return;
+      if (msg.type === 'stage') {
+        card.querySelector('.pc-title').textContent = STAGE_LABELS[msg.stage] || STAGE_LABELS.generating;
+      } else if (msg.type === 'delta') {
+        const text = card.querySelector('.pc-text');
+        text.append(msg.text);
+        text.scrollTop = text.scrollHeight;
+      } else if (msg.type === 'done') {
+        endRun(current);
+        suggestion = {
+          inputEl,
+          original,
+          text: msg.text,
+          modifier: msg.modifier,
+          pre: msg.preScore?.overall,
+          post: msg.postScore?.overall,
+          truncated: msg.truncated
+        };
+        showSuggestion();
+      } else if (msg.type === 'error') {
+        failRun(current, msg.error || 'The rewrite failed.');
+      }
+    });
+    port.onDisconnect.addListener(() => {
+      void chrome.runtime.lastError;
+      failRun(current, 'Lost the connection to PromptCraft. Try again.');
+    });
+
+    port.postMessage({
+      type: 'start',
+      prompt: original,
+      modifier: publicSettings?.modifier,
+      context: IS_CHAT_SITE ? extractPageConversation(original) : null,
+      refine: base ? options.refine : null,
+      focus: options.focus || null
+    });
+  }
+
+  function endRun(target) {
+    target.finished = true;
+    if (run === target) run = null;
+    try { target.port.disconnect(); } catch {}
+    queueSync();
+  }
+
+  function failRun(target, message) {
+    if (target.finished) return;
+    endRun(target);
+    // A failed second pass leaves the first suggestion on offer
+    if (suggestion) {
+      showSuggestion();
+      showToast(message, 5000);
+    } else {
+      showProblem(message, target.options);
     }
   }
 
-  // ── Keyboard Shortcut ──────────────────────────────────────────────────
+  function stopRun() {
+    endRun(run);
+    if (suggestion) showSuggestion();
+    else dismissCard();
+  }
+
+  function showWorking() {
+    const node = openCard('working');
+    const head = el('div', 'pc-head');
+    head.append(el('span', 'pc-spinner'), el('div', 'pc-title', STAGE_LABELS.analyzing), closeButton());
+    const body = el('div', 'pc-body');
+    body.appendChild(el('div', 'pc-text'));
+    const actions = el('div', 'pc-actions');
+    actions.appendChild(uiButton('Stop', 'pc-btn', stopRun));
+    node.append(head, body, actions);
+    syncBadge();
+  }
+
+  function showProblem(message, options) {
+    const node = openCard('problem');
+    const head = el('div', 'pc-head');
+    head.append(el('div', 'pc-title', 'That didn’t work'), closeButton());
+    const body = el('div', 'pc-body');
+    body.appendChild(el('p', 'pc-note pc-error', message));
+    const actions = el('div', 'pc-actions');
+    const retry = uiButton('Try again', 'pc-btn pc-primary', () => startEnhance(options));
+    actions.append(retry, uiButton('Open panel', 'pc-btn', openPanel));
+    node.append(head, body, actions);
+    syncBadge();
+    retry.focus({ preventScroll: true });
+  }
+
+  // Bracketed blanks the rewrite left for details only the user knows
+  function findBlanks(original, enhanced) {
+    const found = enhanced.match(/\[(?![ xX]\])[A-Za-z][^\[\]\n]{2,60}\](?!\()/g) || [];
+    return [...new Set(found.filter(blank => !original.includes(blank)))].slice(0, 5);
+  }
+
+  // The rewrite as the card shows it. When most of the draft survived, what was
+  // added is highlighted; otherwise only the blanks left for the user are.
+  function markedRewrite(original, text, blanks) {
+    const ops = computeDiff(original, text);
+    if (ops) {
+      const words = (type) => ops.filter(op => op.type === type && op.value.trim()).length;
+      if (words('equal') >= words('added')) return diffFragment(ops, ['equal', 'added']);
+    }
+    const frag = document.createDocumentFragment();
+    let rest = text;
+    while (rest) {
+      const hit = blanks.map(blank => ({ blank, at: rest.indexOf(blank) })).filter(h => h.at !== -1).sort((a, b) => a.at - b.at)[0];
+      if (!hit) break;
+      frag.append(rest.slice(0, hit.at), el('mark', 'pc-add', hit.blank));
+      rest = rest.slice(hit.at + hit.blank.length);
+    }
+    frag.append(rest);
+    return frag;
+  }
+
+  function showSuggestion() {
+    const { original, text, pre, post, truncated } = suggestion;
+    const blanks = findBlanks(original, text);
+    const node = openCard('suggestion');
+
+    const head = el('div', 'pc-head');
+    head.appendChild(el('div', 'pc-title', 'Suggested rewrite'));
+    if (typeof pre === 'number' && typeof post === 'number') {
+      const delta = el('span', 'pc-delta', `${pre} → ${post}`);
+      delta.title = 'Prompt quality score, before and after (0-100)';
+      head.appendChild(delta);
+    }
+    head.appendChild(closeButton());
+
+    const body = el('div', 'pc-body');
+    const preview = el('div', 'pc-text');
+    preview.appendChild(markedRewrite(original, text, blanks));
+    body.appendChild(preview);
+
+    // One field per blank; whatever is filled in goes into the text on Accept
+    const fields = blanks.map((blank) => {
+      const label = el('label', 'pc-blank', blank.slice(1, -1));
+      const input = el('input');
+      input.type = 'text';
+      input.autocomplete = 'off';
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          accept.click();
+        }
+      });
+      label.appendChild(input);
+      return { blank, input, label };
+    });
+    if (fields.length > 0) {
+      const form = el('div', 'pc-blanks');
+      form.append(el('span', 'pc-label', 'Fill in the details (optional)'), ...fields.map(f => f.label));
+      body.appendChild(form);
+    }
+    if (truncated) body.appendChild(el('p', 'pc-note', 'The model hit its length limit, so the end may be cut off.'));
+
+    const actions = el('div', 'pc-actions');
+    const accept = uiButton('Accept', 'pc-btn pc-primary', () => {
+      let final = text;
+      for (const { blank, input } of fields) {
+        if (input.value.trim()) final = final.split(blank).join(input.value.trim());
+      }
+      acceptSuggestion(final);
+    });
+    actions.append(accept, uiButton('Dismiss', 'pc-btn', dismissCard));
+
+    const refine = (kind) => () => startEnhance({ refine: { kind, previous: text } });
+    const foot = el('div', 'pc-foot');
+    foot.append(
+      uiButton('Shorter', 'pc-link', refine('shorter')),
+      uiButton('More detail', 'pc-link', refine('longer')),
+      uiButton('Try again', 'pc-link', refine('retry')),
+      uiButton('Compare', 'pc-link pc-end', () => showDiffOverlay(original, text))
+    );
+
+    node.append(head, body, actions, foot);
+    syncBadge();
+    // Enter accepts, Esc dismisses
+    accept.focus({ preventScroll: true });
+  }
+
+  function acceptSuggestion(text) {
+    const { inputEl, modifier } = suggestion;
+    const before = getTextFromElement(inputEl);
+    closeCard();
+    try {
+      if (!inputEl.isConnected) throw new Error('The text box is gone');
+      setTextDirect(inputEl, text);
+    } catch {
+      navigator.clipboard.writeText(text)
+        .then(() => showToast('Could not update the text box, so the rewrite was copied instead'))
+        .catch(() => showToast('Could not update the text box'));
+      return;
+    }
+    inputEl.focus({ preventScroll: true });
+    undoState = { el: inputEl, text: before, modifier, platform: detectPlatform() };
+    showToast('Prompt updated', 8000, { label: 'Undo', run: handleUndo });
+  }
+
+  function handleUndo() {
+    if (!undoState) return;
+    const { el: inputEl, text, modifier, platform } = undoState;
+    undoState = null;
+    if (!inputEl.isConnected) return;
+    setTextDirect(inputEl, text);
+    // Feeds the undo-rate hint that makes later rewrites more conservative
+    send({ action: 'recordUndo', modifier, platform });
+    showToast('Your draft is back');
+  }
+
+  // ── Keyboard & Pointer ──────────────────────────────────────────────────
+  // Chrome's own shortcut (chrome://extensions/shortcuts) normally handles
+  // Ctrl+Shift+E before the page sees it; this covers the case where that
+  // binding is taken or was removed.
 
   document.addEventListener('keydown', (e) => {
-    // Ctrl+Shift+E (or Cmd+Shift+E on Mac)
-    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'E') {
+    if ($ui('.pc-diff')) return; // the changes dialog handles its own keys
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'E' || e.key === 'e')) {
       e.preventDefault();
       e.stopPropagation();
-      handleButtonClick();
+      startEnhance();
+    } else if (e.key === 'Escape' && card) {
+      e.preventDefault();
+      e.stopPropagation();
+      dismissCard();
     }
-    // Ctrl+Z while undo is available — only intercept if our undo is fresh
-    if ((e.ctrlKey || e.metaKey) && e.key === 'z' && undoState && !e.shiftKey) {
-      // Only intercept if it happened within 10 seconds of the enhancement
-      // to avoid breaking normal undo
-    }
+  }, true);
+
+  // A click elsewhere closes the review. A rewrite stays until it is accepted
+  // or dismissed, so a stray click can't throw it away.
+  document.addEventListener('mousedown', (e) => {
+    if (card && card.dataset.view === 'review' && !e.composedPath().includes(uiRoot.host)) closeCard();
+  }, true);
+
+  // Remember the last text field the user was in, for the side panel's "Insert" button
+  document.addEventListener('focusin', (e) => {
+    const target = e.composedPath ? e.composedPath()[0] : e.target;
+    if (isEditable(target)) lastFocusedInput = editingHost(target);
+    queueSync();
   }, true);
 
   // ── Message Listener ──────────────────────────────────────────────────────
 
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    // Context menu and keyboard shortcut
     if (msg.action === 'triggerEnhance') {
-      handleButtonClick();
+      startEnhance();
+      sendResponse({ ok: true });
       return;
     }
 
     if (msg.action === 'getConversation') {
-      const context = extractPageConversation();
-      sendResponse({ context });
+      sendResponse({ context: IS_CHAT_SITE ? extractPageConversation() : null, hasInput: !!findTextInput() });
       return;
     }
 
-    // Streaming: background sends chunks as they arrive
-    if (msg.action === 'streamStart') {
-      streamState.active = true;
-      streamState.text = '';
-      streamState.el = findActiveInput();
-      if (streamState.el) {
-        clearInput(streamState.el);
+    // The side panel's "Insert" button
+    if (msg.action === 'insertText') {
+      const target = findTextInput();
+      if (!target || typeof msg.text !== 'string') {
+        sendResponse({ ok: false });
+        return;
       }
-      return;
-    }
-
-    if (msg.action === 'streamChunk' && streamState.active && streamState.el) {
-      streamState.text += msg.text;
-      setInputValue(streamState.el, streamState.text);
-      return;
-    }
-
-    if (msg.action === 'streamDone') {
-      streamState.active = false;
-      if (streamState.el) {
-        removeGlow();
-        showToast('Prompt enhanced!');
-      }
-      return;
+      setTextDirect(target, msg.text);
+      sendResponse({ ok: true });
     }
   });
-
-  // ── Update Panel Info ──────────────────────────────────────────────────
-
-  function updatePanelInfo() {
-    const panel = document.getElementById(PANEL_ID);
-    if (!panel) return;
-    const { provider, model } = getProviderLabel();
-    const style = getModifierLabel();
-
-    const providerEl = panel.querySelector('[data-pc-provider]');
-    const modelEl = panel.querySelector('[data-pc-model]');
-    const styleEl = panel.querySelector('[data-pc-style]');
-    if (providerEl) providerEl.textContent = provider;
-    if (modelEl) modelEl.textContent = model;
-    if (styleEl) styleEl.textContent = style;
-
-    const contextEl = panel.querySelector('[data-pc-context]');
-    if (contextEl) {
-      const ctx = extractPageConversation();
-      contextEl.textContent = ctx ? `${ctx.messageCount} msgs` : 'None';
-      contextEl.style.color = ctx ? 'rgba(34, 197, 94, 0.9)' : 'rgba(255, 255, 255, 0.4)';
-    }
-  }
-
-  // ── Create Button + Hover Panel ────────────────────────────────────────
-
-  function createButton() {
-    if (document.getElementById(BUTTON_ID)) return;
-
-    if (!document.getElementById('promptcraft-styles')) {
-      const style = document.createElement('style');
-      style.id = 'promptcraft-styles';
-      style.textContent = `
-        @keyframes promptcraft-spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        #promptcraft-wrapper {
-          position: fixed;
-          bottom: 20px;
-          right: 20px;
-          z-index: 2147483647;
-          display: flex;
-          align-items: center;
-          gap: 0;
-          font-family: system-ui, -apple-system, sans-serif;
-        }
-        #${PANEL_ID} {
-          position: absolute;
-          right: 54px;
-          bottom: 4px;
-          background: rgba(26, 26, 46, 0.95);
-          backdrop-filter: blur(12px);
-          border-radius: 12px;
-          padding: 10px 14px;
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
-          min-width: 180px;
-          max-width: 240px;
-          opacity: 0;
-          transform: translateX(8px) scale(0.95);
-          pointer-events: none;
-          transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-        }
-        #promptcraft-wrapper:hover #${PANEL_ID} {
-          opacity: 1;
-          transform: translateX(0) scale(1);
-          pointer-events: auto;
-        }
-        .pc-panel-row {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-        }
-        .pc-panel-label {
-          font-size: 9px;
-          font-weight: 600;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-          color: rgba(255, 255, 255, 0.4);
-          min-width: 48px;
-        }
-        .pc-panel-value {
-          font-size: 11px;
-          font-weight: 500;
-          color: rgba(255, 255, 255, 0.9);
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-        .pc-panel-dot {
-          width: 5px;
-          height: 5px;
-          border-radius: 50%;
-          background: #22C55E;
-          flex-shrink: 0;
-        }
-        .pc-panel-divider {
-          height: 1px;
-          background: rgba(255, 255, 255, 0.08);
-          margin: 2px 0;
-        }
-        .pc-panel-title {
-          font-size: 10px;
-          font-weight: 700;
-          color: rgba(245, 200, 66, 0.9);
-          letter-spacing: 0.3px;
-        }
-        .pc-panel-shortcut {
-          font-size: 9px;
-          color: rgba(255, 255, 255, 0.3);
-          margin-top: 2px;
-        }
-      `;
-      document.head.appendChild(style);
-    }
-
-    const wrapper = document.createElement('div');
-    wrapper.id = 'promptcraft-wrapper';
-
-    const { provider, model } = getProviderLabel();
-    const styleName = getModifierLabel();
-    const ctx = extractPageConversation();
-    const contextLabel = ctx ? `${ctx.messageCount} msgs` : 'None';
-    const contextColor = ctx ? 'rgba(34, 197, 94, 0.9)' : 'rgba(255, 255, 255, 0.4)';
-
-    const panel = document.createElement('div');
-    panel.id = PANEL_ID;
-    panel.innerHTML = `
-      <div class="pc-panel-title">PromptCraft</div>
-      <div class="pc-panel-divider"></div>
-      <div class="pc-panel-row">
-        <span class="pc-panel-dot"></span>
-        <span class="pc-panel-label">API</span>
-        <span class="pc-panel-value" data-pc-provider>${provider}</span>
-      </div>
-      <div class="pc-panel-row">
-        <span class="pc-panel-label" style="margin-left: 11px;">Model</span>
-        <span class="pc-panel-value" data-pc-model>${model}</span>
-      </div>
-      <div class="pc-panel-row">
-        <span class="pc-panel-label" style="margin-left: 11px;">Style</span>
-        <span class="pc-panel-value" data-pc-style>${styleName}</span>
-      </div>
-      <div class="pc-panel-divider"></div>
-      <div class="pc-panel-row">
-        <span class="pc-panel-label" style="margin-left: 11px;">Context</span>
-        <span class="pc-panel-value" data-pc-context style="color: ${contextColor}">${contextLabel}</span>
-      </div>
-      <div class="pc-panel-shortcut">Ctrl+Shift+E to enhance</div>
-    `;
-
-    const btn = document.createElement('button');
-    btn.id = BUTTON_ID;
-    btn.setAttribute('aria-label', 'Enhance prompt with PromptCraft');
-    btn.innerHTML = `
-      <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" width="22" height="22">
-        <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
-        <path d="M2 17l10 5 10-5"></path>
-        <path d="M2 12l10 5 10-5"></path>
-      </svg>
-    `;
-    Object.assign(btn.style, {
-      width: '48px',
-      height: '48px',
-      borderRadius: '50%',
-      background: 'linear-gradient(135deg, #F5C842, #E8621E)',
-      boxShadow: '0 4px 16px rgba(232, 98, 30, 0.35)',
-      border: 'none',
-      cursor: 'pointer',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-      flexShrink: '0',
-    });
-
-    btn.addEventListener('mouseenter', () => {
-      if (!isProcessing) {
-        btn.style.transform = 'scale(1.1)';
-        btn.style.boxShadow = '0 6px 24px rgba(232, 98, 30, 0.45)';
-      }
-    });
-    btn.addEventListener('mouseleave', () => {
-      btn.style.transform = 'scale(1)';
-      btn.style.boxShadow = '0 4px 16px rgba(232, 98, 30, 0.35)';
-    });
-    btn.addEventListener('mousedown', () => {
-      btn.style.transform = 'scale(0.95)';
-    });
-    btn.addEventListener('mouseup', () => {
-      btn.style.transform = 'scale(1.1)';
-    });
-    btn.addEventListener('click', handleButtonClick);
-
-    wrapper.appendChild(panel);
-    wrapper.appendChild(btn);
-    document.body.appendChild(wrapper);
-  }
-
-  // ── MutationObserver ────────────────────────────────────────────────────
-
-  function startObserver() {
-    if (observer) return;
-    observer = new MutationObserver(() => {
-      if (!document.getElementById(BUTTON_ID)) {
-        createButton();
-      }
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-  }
 
   // ── Init ────────────────────────────────────────────────────────────────
 
   function init() {
     fetchSettings();
-    createButton();
-    startObserver();
+    window.addEventListener('scroll', queueSync, { capture: true, passive: true });
+    window.addEventListener('resize', queueSync);
+    document.addEventListener('focusout', queueSync, true);
+    document.addEventListener('input', () => {
+      requestReview();
+      queueSync();
+    }, true);
+    // Chat sites re-render their prompt box, and sometimes <body>, at will
+    if (IS_CHAT_SITE) new MutationObserver(queueSync).observe(document.documentElement, { childList: true, subtree: true });
+    try {
+      chrome.storage.onChanged.addListener((changes, area) => {
+        if (area === 'sync') fetchSettings();
+      });
+    } catch {}
+    queueSync();
   }
 
   if (document.readyState === 'loading') {
@@ -1571,11 +1873,4 @@
   } else {
     init();
   }
-
-  window.addEventListener('beforeunload', () => {
-    if (observer) {
-      observer.disconnect();
-      observer = null;
-    }
-  });
 })();
