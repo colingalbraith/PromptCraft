@@ -76,7 +76,7 @@ Write like a human. Get expert-level prompts. Every time.
 | **Multi-Step Enhancement** | Optional three-pass pipeline: Tone → Structure → Polish |
 | **Provider-Aware** | Tailors prompts to the specific AI you're chatting with |
 | **Prompt Scoring** | 0-100 quality score across 5 dimensions, shown before → after on every rewrite |
-| **Context-Aware** | Extracts and ranks chat history by relevance |
+| **Context-Aware** | Uses the recent conversation on the page, ranked by relevance. One switch, in the badge's card or the side panel, turns it off |
 | **Prompt History** | Search, revisit, and export with before/after scores |
 | **Usage Analytics** | Track enhancements, cost, tokens, and model breakdown, using the token counts the provider reports |
 | **Dark Mode** | Full dark theme with system preference detection; the in-page badge and cards follow the site's own theme |
@@ -243,6 +243,7 @@ PromptCraft/
 ├── fonts/               # Bundled Inter font (SIL Open Font License)
 ├── tests/               # Service worker tests — run with `node --test` (Node 22+, no dependencies)
 ├── scripts/package.js   # Builds the Chrome Web Store zip into dist/
+├── docs/privacy.html    # Privacy policy (source for the website's page)
 ├── CHANGELOG.md         # Release notes
 ├── icon.png             # Main logo
 ├── icons/               # Extension icons (16, 48, 128px)

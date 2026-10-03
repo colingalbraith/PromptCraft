@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy — PromptCraft</title>
+    <link rel="icon" type="image/png" href="assets/icon48.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700&display=swap">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Satoshi', 'Inter', system-ui, sans-serif;
+            line-height: 1.7;
+            color: #1A2D45;
+            background: #F5F0E8;
+            padding: 48px 24px;
+        }
+        .container { max-width: 720px; margin: 0 auto; }
+        h1 { font-size: 2rem; font-weight: 800; margin-bottom: 8px; }
+        .updated { font-size: 0.85rem; color: #8A96A4; margin-bottom: 32px; }
+        h2 { font-size: 1.2rem; font-weight: 700; margin-top: 32px; margin-bottom: 8px; }
+        p, li { font-size: 0.95rem; color: #4A5E72; margin-bottom: 12px; }
+        ul { padding-left: 20px; }
+        a { color: #D4872E; }
+        .back { display: inline-block; margin-bottom: 24px; font-size: 0.9rem; font-weight: 600; color: #D4872E; text-decoration: none; }
+        .back:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back">&larr; Back to PromptCraft</a>
+        <h1>Privacy Policy</h1>
+        <p class="updated">Last updated: October 2026</p>
+
+        <h2>Overview</h2>
+        <p>PromptCraft is a Chrome extension that reviews and rewrites AI prompts. It has no servers of its own: nothing it handles is ever sent to us. This policy explains what the extension reads, what it stores on your device, and what it sends to the AI provider you choose.</p>
+
+        <h2>Data We Do NOT Collect</h2>
+        <ul>
+            <li>We do not collect, store, or transmit any personal information</li>
+            <li>We do not track your browsing activity</li>
+            <li>We do not use analytics, cookies, or tracking pixels</li>
+            <li>We do not have user accounts or sign-up</li>
+            <li>We do not sell or share any data with third parties</li>
+        </ul>
+
+        <h2>What PromptCraft Reads on a Page</h2>
+        <ul>
+            <li><strong>On supported AI chat sites</strong> — ChatGPT (chatgpt.com), Claude (claude.ai), Gemini (gemini.google.com), DeepSeek (deepseek.com), Perplexity (perplexity.ai), Grok (grok.com and the Grok pages of x.com), HuggingFace (huggingface.co) and OpenRouter (openrouter.ai). PromptCraft reads the text in the prompt box as you type, to show a score and suggestions. That review is done inside the extension on your device and sends nothing anywhere. When you ask for a rewrite, it also reads recent messages of the conversation on the page (see "What Is Sent" below).</li>
+            <li><strong>On any other site</strong> — nothing, until you use the right-click "Enhance with PromptCraft" option or the keyboard shortcut there. PromptCraft then reads the text field you are in, and until that page is closed or reloaded it reviews the text fields you type in, again on your device.</li>
+            <li><strong>Password fields</strong> — never read.</li>
+        </ul>
+
+        <h2>Data Stored on Your Device</h2>
+        <p>PromptCraft stores the following using Chrome's built-in storage. Web pages, including the chat sites it runs on, cannot read any of it.</p>
+        <ul>
+            <li><strong>API Keys</strong> — Your API keys for OpenAI, Gemini, Claude, or a custom provider are stored locally on your device only. They are never synced across devices and are sent only to the provider they belong to.</li>
+            <li><strong>Settings</strong> — Your chosen provider, model names, tone, feature switches, and the address of a custom endpoint or Ollama server are kept in Chrome's sync storage. If you have Chrome sync turned on, Chrome copies these settings to your other signed-in browsers through your Google account. API keys are not included.</li>
+            <li><strong>Prompt History</strong> — Your last 100 rewrites: the draft, the rewrite, the tone, the time, the name of the chat site, the before and after scores, and the model used. Stored locally. You can view, search, export, and delete it at any time.</li>
+            <li><strong>Usage Statistics</strong> — Rewrite counts, token counts and estimated cost per model. Stored locally; you can reset them at any time.</li>
+            <li><strong>Undo Counts</strong> — How often you undo a rewrite, per tone and per chat site. These are counts only, with no prompt text, and are used to make later rewrites more conservative. Stored locally.</li>
+            <li><strong>Custom Tones and Model Lists</strong> — Tone presets you create or edit, and model lists loaded from a provider. Stored locally.</li>
+            <li><strong>Short-Term Memory</strong> — The beginning of your most recent draft and rewrite in each tab is kept for up to 30 minutes so a follow-up rewrite can build on it. It is held in the browser's session storage and is removed when the tab or the browser closes.</li>
+        </ul>
+        <p>Removing the extension deletes the data it stored in your browser.</p>
+
+        <h2>What Is Sent, and to Whom</h2>
+        <p>Nothing is sent until you ask for a rewrite. The request then goes straight from your browser to the provider you chose, and contains:</p>
+        <ul>
+            <li>Your draft prompt</li>
+            <li>PromptCraft's rewriting instructions: the tone you picked, notes from the on-device review, and today's date</li>
+            <li>On supported chat sites, recent messages from the conversation on the page, up to about 3,000 characters. You can turn this off with "Use this conversation" in the badge's card or "Use conversation" in the side panel; the choice is remembered, and while it is off the conversation is not sent</li>
+            <li>The beginning of your previous draft and rewrite in the same tab, if you made one in the last 30 minutes</li>
+            <li>For "Shorter", "More detail" and "Try again", the rewrite you are asking to change</li>
+        </ul>
+        <p>Testing an API key or refreshing the model list in Settings contacts the provider with your key and no prompt text.</p>
+        <p>Where the request goes depends on the provider you chose:</p>
+        <ul>
+            <li><strong>Built-in model</strong> — Runs on your computer, using the model built into your browser (Gemini Nano in Chrome). Nothing leaves your device. Your browser downloads the model once from its vendor; PromptCraft takes no part in that download.</li>
+            <li><strong>OpenAI</strong> — api.openai.com (governed by <a href="https://openai.com/policies/privacy-policy" target="_blank">OpenAI's Privacy Policy</a>)</li>
+            <li><strong>Google Gemini</strong> — generativelanguage.googleapis.com (governed by <a href="https://policies.google.com/privacy" target="_blank">Google's Privacy Policy</a>)</li>
+            <li><strong>Anthropic Claude</strong> — api.anthropic.com (governed by <a href="https://www.anthropic.com/privacy" target="_blank">Anthropic's Privacy Policy</a>)</li>
+            <li><strong>Ollama</strong> — Sent to the Ollama address in Settings. By default that is your own computer, and no data leaves your device. If you point it at another machine, your prompts go to that machine.</li>
+            <li><strong>Custom endpoints</strong> — Sent to whatever URL you configure. You are responsible for that provider's privacy practices.</li>
+        </ul>
+        <p>We do not proxy, log, or store any data from these requests. PromptCraft makes no other network requests: no analytics, and no fonts or scripts loaded from other sites.</p>
+
+        <h2>Permissions</h2>
+        <p>PromptCraft requests the following Chrome permissions:</p>
+        <ul>
+            <li><strong>storage</strong> — To save your settings and history on your device</li>
+            <li><strong>sidePanel</strong> — To open PromptCraft beside the page when you click its toolbar icon</li>
+            <li><strong>contextMenus</strong> — To add the right-click "Enhance with PromptCraft" option</li>
+            <li><strong>activeTab, scripting</strong> — To read and update the text field you are in when you use the right-click option or the keyboard shortcut on a site outside the list above. Access is limited to that tab, and only after you ask</li>
+            <li><strong>clipboardWrite</strong> — To copy a rewrite to your clipboard</li>
+            <li><strong>Access to the supported chat sites</strong> — To show the badge in the prompt box and read the conversation for context</li>
+            <li><strong>Access to the provider addresses</strong> — api.openai.com, generativelanguage.googleapis.com, api.anthropic.com and the default Ollama address on your own computer, to send rewrite requests</li>
+            <li><strong>Optional access to one more address</strong> — Only if you set up a custom endpoint or a different Ollama address. Chrome asks you first, and access is granted for that address alone</li>
+        </ul>
+
+        <h2>Limited Use</h2>
+        <p>PromptCraft's use of the data described here follows the Chrome Web Store User Data Policy, including its Limited Use requirements: the data is used only to provide the features you see, is not used for advertising, and is not transferred to anyone except the AI provider you chose, at your request.</p>
+
+        <h2>Open Source</h2>
+        <p>PromptCraft is fully open source. You can inspect every line of code at <a href="https://github.com/colingalbraith/PromptCraft" target="_blank">github.com/colingalbraith/PromptCraft</a>.</p>
+
+        <h2>Changes</h2>
+        <p>If we update this policy, we'll update the "Last updated" date above. Significant changes will be noted in the GitHub repository.</p>
+
+        <h2>Contact</h2>
+        <p>Questions? Open an issue at <a href="https://github.com/colingalbraith/PromptCraft/issues" target="_blank">github.com/colingalbraith/PromptCraft/issues</a>.</p>
+    </div>
+</body>
+</html>

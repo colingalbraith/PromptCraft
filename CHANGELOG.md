@@ -13,6 +13,7 @@
 - **One-click refinement** after a rewrite: *Shorter*, *More detail*, *Try again*.
 - **Fill in the blanks.** Rewrites leave a `[bracketed blank]` where only you know the detail, and the suggestion card offers a field for each.
 - **Tone switching from the badge's review card.**
+- **One switch for conversation context.** "Use this conversation" in the badge's card and "Use conversation" in the side panel are the same remembered setting. When it is off, the conversation on the page is not read for a rewrite or sent to the provider.
 - **Custom provider settings** for any OpenAI-compatible API (Groq, Together, OpenRouter, LM Studio, vLLM), and a toggle for multi-step enhancement.
 - **Live model lists.** ↻ in Settings loads the provider's current models.
 - **Insert** button in the side panel puts the result into the page's text box.
