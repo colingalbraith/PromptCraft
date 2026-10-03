@@ -345,15 +345,21 @@ const InputParser = {
   detectContentTypes(text) {
     const types = [];
 
-    // Code detection — real patterns, not just backticks
+    // Code detection — each pattern needs code syntax around the keyword, so
+    // ordinary words like "from", "class", "public" or "..." don't count
     const codePatterns = [
+      /```/,
       /\b(function|const|let|var|class|import|export|return|if|else|for|while|switch|try|catch)\b\s*[\({]/,
-      /\b(def|class|import|from|print|self|elif|except|lambda)\b/,
-      /[{}\[\]();]\s*\n/,
-      /(=>|->|::|\.\.|\.\.\.)/,
-      /\b(public|private|protected|static|void|int|string|bool)\b/,
+      /^\s*(def|class)\s+\w+\s*[(:]/m,
+      /^\s*(import\s+[\w.]+|from\s+[\w.]+\s+import\b)/m,
+      /\bprint\s*\(|\bself\.\w+|\blambda\s+[\w,\s]*:/,
+      /^\s*(elif|except)\b.*:\s*$/m,
+      /[{};]\s*\n/,
+      /=>|::/,
+      /\b(public|private|protected)\s+(static\s+)?(void|int|string|bool|class|function|final|async)\b/i,
+      /\b(void|int|bool|string|float|double)\s+\w+\s*[(=;]/,
       /^\s*(#include|using namespace|package |import java)/m,
-      /\bsql\b|SELECT\s+.*\s+FROM|INSERT\s+INTO|CREATE\s+TABLE/i,
+      /\bSELECT\s+.*\s+FROM\b|\bINSERT\s+INTO\b|\bCREATE\s+TABLE\b/,
       /\.(map|filter|reduce|forEach|push|pop|slice|concat)\(/,
       /[a-zA-Z_]\w*\s*=\s*[a-zA-Z_]\w*\s*\(/,
     ];
@@ -602,6 +608,36 @@ const InputParser = {
       breakdown: { specificity, clarity, structure, context, actionability },
       suggestions
     };
+  },
+
+  // ── Issues ────────────────────────────────────────────────────────────────
+  // The weakest parts of a draft as short, actionable items for the UI.
+  // Local and deterministic, so it can run as the user types.
+  issues(text) {
+    if (!text || typeof text !== 'string' || text.trim().length < 3) return [];
+    const trimmed = text.trim();
+    const wordCount = trimmed.split(/\s+/).length;
+    const advice = {
+      specificity: ['Be more specific', 'Name exact numbers, names or terms in place of general words.'],
+      clarity: ['Tighten the wording', 'Shorten long sentences and spell out what "it" or "this" refers to.'],
+      structure: ['Add structure', 'Break it into short sections or a numbered list.'],
+      context: ['Add context', 'Say who it is for, why you need it, and any limits.'],
+      actionability: ['Say what you want back', 'Ask for a format and length, such as a list, a table or 200 words.']
+    };
+    const scores = {
+      specificity: this._scoreSpecificity(trimmed),
+      clarity: this._scoreClarity(trimmed),
+      context: this._scoreContext(trimmed),
+      actionability: this._scoreActionability(trimmed)
+    };
+    // A one-liner doesn't need headings or lists
+    if (wordCount > 25) scores.structure = this._scoreStructure(trimmed);
+
+    return Object.entries(scores)
+      .filter(([, score]) => score < 60)
+      .sort((a, b) => a[1] - b[1])
+      .slice(0, 3)
+      .map(([id]) => ({ id, title: advice[id][0], detail: advice[id][1] }));
   },
 
   // ── Specificity Score ─────────────────────────────────────────────────────
