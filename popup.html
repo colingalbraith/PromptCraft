@@ -4,102 +4,94 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PromptCraft</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700,800,900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <!-- Rounded popup frame -->
+  <!-- Panel frame -->
   <div class="popup-frame">
-
-    <!-- Animated background (inside frame so it clips) -->
-    <div class="gradient-background">
-      <div class="gradient-blob blob1"></div>
-      <div class="gradient-blob blob2"></div>
-      <div class="gradient-blob blob3"></div>
-      <div class="gradient-blob blob4"></div>
-    </div>
 
     <div class="app-container">
 
       <!-- ─── Main Page ─── -->
       <div id="main-page" class="page active">
-        <div class="header anim-item">
+        <div class="header">
+          <img src="icons/icon128.png" class="brand-mark" alt="">
           <h1>PromptCraft</h1>
-          <button id="templates-btn" class="icon-btn" title="Templates">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
-              <rect x="3" y="3" width="7" height="7" rx="1"></rect>
-              <rect x="14" y="3" width="7" height="7" rx="1"></rect>
-              <rect x="3" y="14" width="7" height="7" rx="1"></rect>
-              <rect x="14" y="14" width="7" height="7" rx="1"></rect>
-            </svg>
-          </button>
-          <button id="history-btn" class="icon-btn" title="History">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
-              <circle cx="12" cy="12" r="10"></circle>
-              <polyline points="12 6 12 12 16 14"></polyline>
-            </svg>
-          </button>
-          <button id="settings-btn" class="icon-btn" title="Settings">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
-              <circle cx="12" cy="12" r="3"></circle>
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-            </svg>
-          </button>
-        </div>
-
-        <div class="style-picker anim-item">
-          <div class="label-row">
-            <label>Tone</label>
-          </div>
-          <div id="style-chips" class="style-chips">
-            <!-- Populated by JS -->
+          <div id="provider-status" class="provider-status" role="button" tabindex="0" title="Open provider settings">
+            <span class="provider-status-dot"></span>
+            <span id="provider-status-text">Loading...</span>
           </div>
         </div>
 
-        <div class="input-group anim-item">
+        <div class="input-group">
           <div class="label-row">
             <label for="input">Your prompt</label>
             <button id="clear-btn" class="text-btn" title="Clear">Clear</button>
           </div>
-          <textarea id="input" placeholder="Enter your prompt here... (Ctrl+Enter to enhance)"></textarea>
-          <span id="char-count" class="char-count">0 chars</span>
+          <textarea id="input" placeholder="Write or paste a prompt..."></textarea>
+          <div class="input-meta">
+            <label class="context-toggle-label" for="include-context">
+              <input type="checkbox" id="include-context" checked>
+              <span class="context-toggle-text">Use conversation</span>
+            </label>
+            <span id="context-indicator" class="context-indicator"></span>
+            <button id="view-context" class="text-btn" style="display:none" title="View context">View</button>
+            <span id="char-count" class="char-count">0 chars</span>
+          </div>
         </div>
 
-        <div class="context-row anim-item">
-          <label class="context-toggle-label" for="include-context">
-            <input type="checkbox" id="include-context" checked>
-            <span class="context-toggle-text">Use conversation context</span>
-          </label>
-          <span id="context-indicator" class="context-indicator"></span>
-          <button id="view-context" class="text-btn" style="display:none" title="View context">View</button>
+        <section class="review" aria-label="Prompt review">
+          <div class="review-head">
+            <span id="review-ring" class="score-ring none" title="Prompt quality score (0-100)">
+              <svg viewBox="0 0 36 36" aria-hidden="true">
+                <circle class="score-ring-track" cx="18" cy="18" r="15.5"></circle>
+                <circle class="score-ring-value" cx="18" cy="18" r="15.5" pathLength="100" stroke-dasharray="0 100"></circle>
+              </svg>
+              <b>&ndash;</b>
+            </span>
+            <div class="review-title">
+              <strong>Prompt review</strong>
+              <span id="review-summary" aria-live="polite">Start typing and the weak spots show up here</span>
+            </div>
+          </div>
+          <div id="review-issues" class="review-issues"></div>
+        </section>
+
+        <div class="style-picker">
+          <div class="label-row">
+            <label>Tone</label>
+          </div>
+          <div id="style-chips" class="style-chips" role="group" aria-label="Tone">
+            <!-- Populated by JS -->
+          </div>
         </div>
 
-        <button id="rewrite" class="primary-btn anim-item">
-          <span class="btn-text">Enhance Prompt</span>
-          <span class="btn-shimmer"></span>
+        <button id="rewrite" class="primary-btn">
+          <span class="btn-text">Improve prompt</span>
+          <kbd>Ctrl+Enter</kbd>
         </button>
-        <span class="shortcut-hint anim-item">Ctrl+Enter</span>
 
         <div id="output-container">
           <div class="output-header">
-            <h3>Enhanced Prompt</h3>
-            <button id="copy-btn" class="icon-btn" title="Copy to clipboard">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-              </svg>
-            </button>
+            <h3>Suggested rewrite</h3>
+            <span id="score-badge" class="score-badge hidden" title="Prompt quality score, before and after (0-100)"></span>
+            <div class="output-actions">
+              <button id="insert-btn" class="text-btn hidden" title="Put this prompt into the page's text box">Insert</button>
+              <button id="copy-btn" class="icon-btn" title="Copy to clipboard" aria-label="Copy to clipboard">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+              </button>
+            </div>
           </div>
-          <div id="output" class="output-text"></div>
+          <div id="output" class="output-text" aria-live="polite" aria-busy="false"></div>
         </div>
 
         <div id="context-modal" class="context-modal hidden">
           <div class="context-modal-header">
             <h3>Conversation Context</h3>
-            <button id="close-context-modal" class="icon-btn" title="Close">
+            <button id="close-context-modal" class="icon-btn" title="Close" aria-label="Close">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
                 <line x1="18" y1="6" x2="6" y2="18"></line>
                 <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -108,42 +100,13 @@
           </div>
           <div id="context-modal-content" class="context-modal-content"></div>
         </div>
-
-        <div class="main-footer anim-item">
-          <div id="provider-status" class="provider-status">
-            <span class="provider-status-dot"></span>
-            <span id="provider-status-text">Loading...</span>
-          </div>
-          <button id="templates-footer-btn" class="usage-indicator" title="Browse templates">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
-              <rect x="3" y="3" width="7" height="7" rx="1"></rect>
-              <rect x="14" y="3" width="7" height="7" rx="1"></rect>
-              <rect x="3" y="14" width="7" height="7" rx="1"></rect>
-              <rect x="14" y="14" width="7" height="7" rx="1"></rect>
-            </svg>
-            <span>Templates</span>
-          </button>
-          <button id="usage-btn" class="usage-indicator" title="View usage stats">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
-              <path d="M18 20V10"></path>
-              <path d="M12 20V4"></path>
-              <path d="M6 20v-6"></path>
-            </svg>
-            <span id="usage-indicator-text">0 enhancements</span>
-          </button>
-        </div>
       </div>
 
       <!-- ─── Settings Page ─── -->
-      <div id="settings-page" class="page">
+      <div id="settings-page" class="page" inert>
         <div class="header">
-          <button id="back-from-settings" class="icon-btn" title="Back">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
-              <polyline points="15 18 9 12 15 6"></polyline>
-            </svg>
-          </button>
           <h1>Settings</h1>
-          <button id="theme-toggle-btn" class="icon-btn" title="Toggle dark mode">
+          <button id="theme-toggle-btn" class="icon-btn" title="Toggle dark mode" aria-label="Toggle dark mode">
             <svg id="theme-icon-sun" class="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" style="display:none">
               <circle cx="12" cy="12" r="5"></circle>
               <line x1="12" y1="1" x2="12" y2="3"></line>
@@ -177,29 +140,40 @@
             <button class="api-provider-btn active" data-provider="openai">OpenAI</button>
             <button class="api-provider-btn" data-provider="gemini">Gemini</button>
             <button class="api-provider-btn" data-provider="claude">Claude</button>
+            <button class="api-provider-btn" data-provider="custom">Custom</button>
+          </div>
+          <div id="custom-endpoint-group" class="input-group compact hidden">
+            <label for="custom-endpoint">Endpoint</label>
+            <input type="text" id="custom-endpoint" placeholder="https://api.groq.com/openai/v1" spellcheck="false">
           </div>
           <div class="input-group compact">
-            <label for="api-key">API Key</label>
+            <label for="api-key" id="api-key-label">API Key</label>
             <div class="input-row">
               <input type="password" id="api-key" placeholder="Enter your API key">
               <button id="show-key" class="toggle-btn">Show</button>
               <button id="test-api-key" class="toggle-btn" title="Test connection">Test</button>
             </div>
-            <div id="api-key-status" class="connection-status"></div>
+            <div id="api-key-status" class="connection-status" role="status"></div>
           </div>
           <div class="input-group compact">
-            <label>Model</label>
-            <div class="custom-select" id="api-model-select">
-              <button class="custom-select-trigger" type="button">
-                <span class="custom-select-value">Select a model...</span>
-                <svg class="custom-select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                  <polyline points="6 9 12 15 18 9"></polyline>
-                </svg>
-              </button>
-              <div class="custom-select-dropdown"></div>
+            <label for="custom-model">Model</label>
+            <div class="input-row">
+              <div class="custom-select" id="api-model-select">
+                <button class="custom-select-trigger" type="button" aria-haspopup="listbox" aria-expanded="false">
+                  <span class="custom-select-value">Select a model...</span>
+                  <svg class="custom-select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
+                <div class="custom-select-dropdown" role="listbox"></div>
+              </div>
+              <input type="text" id="custom-model" class="hidden" list="custom-model-list" placeholder="e.g. llama-3.3-70b-versatile" spellcheck="false">
+              <datalist id="custom-model-list"></datalist>
+              <button id="refresh-api-models" class="toggle-btn" title="Load the current model list from the provider" aria-label="Refresh model list">↻</button>
             </div>
           </div>
           <p id="api-hint" class="hint">Get a key at <a id="api-hint-link" href="#" target="_blank">OpenAI Platform</a></p>
+          <p id="custom-hint" class="hint hidden">Any OpenAI-compatible API works: Groq, Together, OpenRouter, LM Studio, vLLM. The key is optional for local servers.</p>
         </div>
 
         <!-- Ollama Settings -->
@@ -212,18 +186,18 @@
             <label>Model</label>
             <div class="input-row">
               <div class="custom-select" id="ollama-model-select">
-                <button class="custom-select-trigger" type="button">
+                <button class="custom-select-trigger" type="button" aria-haspopup="listbox" aria-expanded="false">
                   <span class="custom-select-value">Click refresh to load</span>
                   <svg class="custom-select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
                     <polyline points="6 9 12 15 18 9"></polyline>
                   </svg>
                 </button>
-                <div class="custom-select-dropdown"></div>
+                <div class="custom-select-dropdown" role="listbox"></div>
               </div>
-              <button id="refresh-ollama-models" class="toggle-btn" title="Refresh models">↻</button>
+              <button id="refresh-ollama-models" class="toggle-btn" title="Refresh models" aria-label="Refresh model list">↻</button>
             </div>
           </div>
-          <div id="ollama-status" class="connection-status"></div>
+          <div id="ollama-status" class="connection-status" role="status"></div>
         </div>
 
         <!-- Presets -->
@@ -254,13 +228,32 @@
           <label class="section-label">Deep Analysis</label>
           <label class="toggle-row">
             <span class="toggle-label">LLM-powered input analysis</span>
-            <input type="checkbox" id="deep-analysis-toggle">
+            <input type="checkbox" id="deep-analysis-toggle" role="switch">
             <span class="toggle-switch"></span>
           </label>
-          <p class="hint">Uses an extra API call to deeply understand your input before enhancing. Better results, slightly slower. Free with Ollama.</p>
+          <p class="hint">Uses an extra API call to deeply understand your input before enhancing. Slower to start and costs more; off by default. Free with Ollama.</p>
+        </div>
+
+        <!-- Multi-Step Toggle -->
+        <div class="settings-section">
+          <label class="section-label">Multi-Step Enhancement</label>
+          <label class="toggle-row">
+            <span class="toggle-label">Three passes: tone, structure, polish</span>
+            <input type="checkbox" id="multi-step-toggle" role="switch">
+            <span class="toggle-switch"></span>
+          </label>
+          <p class="hint">Runs three API calls per enhancement and streams the last. Best for long, complex prompts.</p>
         </div>
 
         <button id="save-settings" class="primary-btn">Save Settings</button>
+
+        <button id="usage-btn" class="link-row" title="View usage stats">
+          <span>Usage and cost</span>
+          <span id="usage-indicator-text" class="link-row-meta">0 rewrites</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" aria-hidden="true">
+            <polyline points="9 6 15 12 9 18"></polyline>
+          </svg>
+        </button>
 
         <div class="about-section">
           <p class="privacy-note">Your settings are stored locally and never sent to external servers.</p>
@@ -271,32 +264,27 @@
             <span class="about-dot"></span>
             <a href="https://getpromptcraft.vercel.app/privacy.html" target="_blank" rel="noopener noreferrer">Privacy</a>
           </div>
-          <p class="version">PromptCraft v1.0.0</p>
+          <p class="version">PromptCraft v1.1.0</p>
         </div>
       </div>
 
       <!-- ─── History Page ─── -->
-      <div id="history-page" class="page">
+      <div id="history-page" class="page" inert>
         <div class="header">
-          <button id="back-from-history" class="icon-btn" title="Back">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
-              <polyline points="15 18 9 12 15 6"></polyline>
-            </svg>
-          </button>
           <h1>History</h1>
           <span id="history-count" class="history-count"></span>
           <button id="export-history" class="text-btn" title="Export history">Export</button>
           <button id="clear-history" class="text-btn" title="Clear history">Clear</button>
         </div>
         <div class="history-search-row">
-          <input type="text" id="history-search" class="history-search" placeholder="Search history...">
+          <input type="text" id="history-search" class="history-search" placeholder="Search history..." aria-label="Search history">
         </div>
         <div id="history-list" class="history-list"></div>
       </div>
       <!-- ─── Usage Page ─── -->
-      <div id="usage-page" class="page">
+      <div id="usage-page" class="page" inert>
         <div class="header">
-          <button id="back-from-usage" class="icon-btn" title="Back">
+          <button id="back-from-usage" class="icon-btn" title="Back" aria-label="Back">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
               <polyline points="15 18 9 12 15 6"></polyline>
             </svg>
@@ -308,7 +296,7 @@
         <div class="usage-stat-cards">
           <div class="usage-stat-card">
             <span class="usage-stat-value" id="usage-total-enhancements">0</span>
-            <span class="usage-stat-label">Enhancements</span>
+            <span class="usage-stat-label">Rewrites</span>
           </div>
           <div class="usage-stat-card">
             <span class="usage-stat-value" id="usage-total-cost">$0.00</span>
@@ -349,13 +337,8 @@
       </div>
 
       <!-- ─── Templates Page ─── -->
-      <div id="templates-page" class="page">
+      <div id="templates-page" class="page" inert>
         <div class="header">
-          <button id="back-from-templates" class="icon-btn" title="Back">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
-              <polyline points="15 18 9 12 15 6"></polyline>
-            </svg>
-          </button>
           <h1>Templates</h1>
         </div>
         <div id="template-category-tabs" class="template-category-tabs">
@@ -367,7 +350,7 @@
         <!-- Template detail / fill-in view (hidden by default) -->
         <div id="template-detail" class="template-detail hidden">
           <div class="template-detail-header">
-            <button id="back-from-template-detail" class="icon-btn" title="Back to templates">
+            <button id="back-from-template-detail" class="icon-btn" title="Back to templates" aria-label="Back to templates">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
                 <polyline points="15 18 9 12 15 6"></polyline>
               </svg>
@@ -390,20 +373,19 @@
             </div>
             <div class="template-tone-picker">
               <label>Tone</label>
-              <div id="template-tone-chips" class="style-chips">
+              <div id="template-tone-chips" class="style-chips" role="group" aria-label="Tone">
                 <!-- Populated by JS -->
               </div>
             </div>
             <button id="use-template-btn" class="primary-btn">
               <span class="btn-text">Use Template</span>
-              <span class="btn-shimmer"></span>
             </button>
           </div>
         </div>
       </div>
 
       <!-- ─── Onboarding Page ─── -->
-      <div id="onboarding-page" class="page">
+      <div id="onboarding-page" class="page" inert>
         <div class="onboarding-content">
           <img src="icon.png" class="onboarding-logo" alt="PromptCraft">
           <h2 class="onboarding-title">Welcome to PromptCraft</h2>
@@ -441,7 +423,7 @@
                 <button id="onboarding-test-btn" class="toggle-btn" title="Test connection">Test</button>
               </div>
             </div>
-            <div id="onboarding-test-status" class="connection-status"></div>
+            <div id="onboarding-test-status" class="connection-status" role="status"></div>
           </div>
 
           <!-- Ollama instructions -->
@@ -459,17 +441,52 @@
 
           <button id="onboarding-start" class="primary-btn" disabled>
             <span class="btn-text">Get Started</span>
-            <span class="btn-shimmer"></span>
           </button>
           <button id="onboarding-skip" class="text-btn">I'll set this up later in Settings</button>
         </div>
       </div>
 
     </div>
+
+    <!-- Tab bar: the four places the panel can be -->
+    <nav class="tab-bar" aria-label="Sections">
+      <button id="nav-write" class="tab active" data-page="main-page" aria-current="page">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20" aria-hidden="true">
+          <path d="M12 20h9"></path>
+          <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+        </svg>
+        <span>Write</span>
+      </button>
+      <button id="templates-btn" class="tab" data-page="templates-page">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20" aria-hidden="true">
+          <rect x="3" y="3" width="7" height="7" rx="1"></rect>
+          <rect x="14" y="3" width="7" height="7" rx="1"></rect>
+          <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+          <rect x="14" y="14" width="7" height="7" rx="1"></rect>
+        </svg>
+        <span>Templates</span>
+      </button>
+      <button id="history-btn" class="tab" data-page="history-page">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"></circle>
+          <polyline points="12 7 12 12 15.5 14"></polyline>
+        </svg>
+        <span>History</span>
+      </button>
+      <button id="settings-btn" class="tab" data-page="settings-page">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20" aria-hidden="true">
+          <line x1="4" y1="7" x2="20" y2="7"></line>
+          <line x1="4" y1="17" x2="20" y2="17"></line>
+          <circle cx="9" cy="7" r="2.5" fill="var(--surface)"></circle>
+          <circle cx="15" cy="17" r="2.5" fill="var(--surface)"></circle>
+        </svg>
+        <span>Settings</span>
+      </button>
+    </nav>
   </div>
 
   <!-- Toast notifications (outside frame so they can overflow) -->
-  <div id="toast-container"></div>
+  <div id="toast-container" role="status" aria-live="polite"></div>
 
   <script src="constants.js"></script>
   <script src="popup.js"></script>
