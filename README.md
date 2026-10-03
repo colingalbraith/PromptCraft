@@ -50,7 +50,7 @@ https://github.com/user-attachments/assets/a64a511d-0ccc-4a24-b761-bea628b81a16
 
 ## About
 
-PromptCraft is a free, open-source Chrome extension that enhances your AI prompts with a single click. It works across 8+ AI chat platforms with support for multiple API providers and local models.
+PromptCraft is a free, open-source Chrome extension that reviews and rewrites your AI prompts where you type them. It works across 8+ AI chat platforms, with your own API key, a local model, or the model built into your browser.
 
 Write like a human. Get expert-level prompts. Every time.
 
@@ -148,7 +148,7 @@ git clone https://github.com/colingalbraith/PromptCraft.git
 3. Pick **Built-in** if it is offered (no key needed), paste an API key, or select Ollama for free local use
 4. Click **Get Started** — you're ready to enhance
 
-> **Tip:** Gemini is the easiest way to start. Free API key, no credit card, takes 30 seconds.
+> **Tip:** If **Built-in** isn't offered on your computer, Gemini is the easiest way to start. Free API key, no credit card, takes 30 seconds.
 
 ---
 
@@ -187,7 +187,7 @@ Your Input
          │
          ▼
 ┌─────────────────┐
-│  Provider Call   │  One streaming request to your configured AI provider
+│  Provider Call   │  One streaming request to your provider, or the built-in model
 └────────┬────────┘
          │
          ▼
@@ -196,7 +196,7 @@ Your Input
 └────────┬────────┘
          │
          ▼
-   Enhanced Prompt  →  Streamed into your chat input
+ Suggested Rewrite  →  Shown beside your chat input; written into it when you accept
 ```
 
 ---
@@ -276,7 +276,7 @@ PromptCraft takes privacy seriously:
 - **No tracking** — no analytics, cookies, or telemetry
 - **No accounts** — no sign-up required
 - **Local storage** — API keys and history stay on your device, and web pages (including the chat sites the extension runs on) cannot read them
-- **Direct to your provider** — your prompt, and the recent conversation when context is on, go only to the AI provider you configured
+- **Direct to your provider** — your prompt, and the recent conversation when context is on, go only to the AI provider you configured. With the built-in model or Ollama they never leave your computer
 - **Runs only where needed** — the extension is active on the supported chat sites, and on other pages only when you invoke it
 - **No third-party requests** — fonts are bundled, so the only network traffic is to your AI provider
 - **Open source** — inspect every line of code yourself

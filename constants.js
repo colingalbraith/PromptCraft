@@ -1,4 +1,4 @@
-// PromptCraft v2.0 — Shared constants
+// PromptCraft — Shared constants
 // Loaded by popup.html via <script> and background.js via importScripts()
 
 const PROVIDERS = {
