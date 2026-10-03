@@ -9,7 +9,7 @@
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Chrome Extension](https://img.shields.io/badge/Chrome-Extension-orange.svg)](https://github.com/colingalbraith/PromptCraft)
 [![GitHub Stars](https://img.shields.io/github/stars/colingalbraith/PromptCraft?style=social)](https://github.com/colingalbraith/PromptCraft)
-[![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](manifest.json)
+[![Version](https://img.shields.io/badge/version-1.1.0-green.svg)](manifest.json)
 
 [Website](https://getpromptcraft.vercel.app) | [Report Bug](https://github.com/colingalbraith/PromptCraft/issues) | [Contributing](CONTRIBUTING.md)
 
@@ -39,6 +39,7 @@ https://github.com/user-attachments/assets/a64a511d-0ccc-4a24-b761-bea628b81a16
 - [Supported AI Chat Sites](#supported-ai-chat-sites)
 - [Installation](#installation)
 - [How It Works](#how-it-works)
+- [Troubleshooting](#troubleshooting)
 - [Templates](#templates)
 - [Project Structure](#project-structure)
 - [Contributing](#contributing)
@@ -59,21 +60,28 @@ Write like a human. Get expert-level prompts. Every time.
 
 | Feature | Description |
 |---|---|
-| **One-Click Enhancement** | Select text on any AI chat, hit `Ctrl+Shift+E` or click the button |
+| **Badge in the Prompt Box** | A small badge sits in the corner of the chat box. Click it for a review of your draft, or press `Ctrl+Shift+E` to go straight to a rewrite |
+| **Live Prompt Review** | A 0-100 score and up to three weak spots as you type, each with a one-click *Fix*. Scored locally: nothing is sent to a model until you ask for a rewrite |
+| **Works on Any Site** | Right-click any text field → *Enhance with PromptCraft*, or use the shortcut — no extra permissions |
+| **Suggest, Then Accept** | The rewrite streams into a card beside the box, on every provider. Your text only changes when you press *Accept* (or `Enter`); `Esc` dismisses it |
+| **One-Click Refinement** | After a rewrite: *Shorter*, *More detail*, or *Try again* |
+| **Side Panel** | The toolbar icon opens PromptCraft beside the page. It stays open as you switch tabs, and *Insert* drops the result into the page's text box |
 | **14+ Templates** | Debug code, write emails, brainstorm, compare options, and more |
-| **5 Tones + Custom Presets** | Concise, Detailed, Creative, Technical, Reasoning — or build your own |
+| **5 Tones + Custom Presets** | Concise, Detailed, Creative, Technical, Reasoning — or build your own. Switch tone from the badge's review card without opening the side panel |
+| **No Invented Details** | Where only you know the answer, the rewrite leaves a `[bracketed blank]` and offers a field to fill it in |
 | **Smart Input Analysis** | Detects code, errors, quotes, URLs, and intent automatically |
 | **Deep Analysis** | Optional LLM-powered pass for semantic understanding before enhancing |
-| **Word-Level Diff View** | See exactly what changed with green/red highlighting |
-| **Multi-Step Enhancement** | Three-pass pipeline: Expand → Structure → Polish |
+| **Word-Level Diff View** | *Compare* shows your draft and the rewrite side by side, with additions highlighted |
+| **Multi-Step Enhancement** | Optional three-pass pipeline: Tone → Structure → Polish |
 | **Provider-Aware** | Tailors prompts to the specific AI you're chatting with |
-| **Prompt Scoring** | 0-100 quality score across 5 dimensions |
-| **Streaming** | Real-time token streaming for supported providers |
+| **Prompt Scoring** | 0-100 quality score across 5 dimensions, shown before → after on every rewrite |
 | **Context-Aware** | Extracts and ranks chat history by relevance |
 | **Prompt History** | Search, revisit, and export with before/after scores |
-| **Usage Analytics** | Track enhancements, cost, tokens, and model breakdown |
-| **Dark Mode** | Full dark theme with system preference detection |
-| **Undo** | Revert any enhancement instantly |
+| **Usage Analytics** | Track enhancements, cost, tokens, and model breakdown, using the token counts the provider reports |
+| **Dark Mode** | Full dark theme with system preference detection; the in-page badge and cards follow the site's own theme |
+| **Undo** | After accepting a rewrite, *Undo* puts your draft back |
+| **Stays Out of the Way** | Outside chat sites nothing is added to a page until you use the shortcut or the right-click menu there |
+| **Keyboard Accessible** | Visible focus, labelled controls, and keyboard-operable pickers throughout |
 
 ---
 
@@ -81,11 +89,13 @@ Write like a human. Get expert-level prompts. Every time.
 
 | Provider | Type | Models |
 |---|---|---|
-| **OpenAI** | Cloud API | GPT-4o, GPT-4o Mini, GPT-4 Turbo, o3-mini |
-| **Google Gemini** | Cloud API | Gemini 2.0 Flash, 1.5 Flash, 1.5 Pro |
-| **Anthropic Claude** | Cloud API | Claude Sonnet 4, Claude Haiku 4.5 |
-| **Ollama** | Local | Any model — llama3, mistral, etc. (free) |
-| **Custom** | Any | OpenAI-compatible APIs — Groq, Together, OpenRouter, vLLM |
+| **OpenAI** | Cloud API | GPT-6 Luna, GPT-6.1 Sol, GPT-6 Astra |
+| **Google Gemini** | Cloud API | Gemini 3.5 Flash-Lite, 3.8 Flash, 3.1 Flash-Lite, 3.1 Pro |
+| **Anthropic Claude** | Cloud API | Claude Opus 5.5, Sonnet 5.5, Haiku 4.5, Fable 5.1 |
+| **Ollama** | Local | Any installed model (free) |
+| **Custom** | Any | OpenAI-compatible APIs — Groq, Together, OpenRouter, LM Studio, vLLM |
+
+The lists above are only the starting point: press **↻** next to the model picker in Settings to load the provider's current models, so new releases work without an extension update.
 
 > **New to this?** We recommend starting with **Google Gemini** — it has a generous free tier and no credit card required. [Get a key here.](https://aistudio.google.com/app/apikey)
 
@@ -129,7 +139,7 @@ git clone https://github.com/colingalbraith/PromptCraft.git
 
 ### Setup
 
-1. Click the PromptCraft icon in your Chrome toolbar
+1. Click the PromptCraft icon in your Chrome toolbar — it opens in the side panel
 2. The onboarding wizard will guide you through picking a provider
 3. Paste your API key (or select Ollama for free local use)
 4. Click **Get Started** — you're ready to enhance
@@ -141,12 +151,15 @@ git clone https://github.com/colingalbraith/PromptCraft.git
 ## How It Works
 
 ```
-1. Type your prompt           →  Don't worry about wording
-2. Click the PromptCraft      →  Or press Ctrl+Shift+E
-3. Prompt gets analyzed        →  Content type, intent, quality
-4. Enhancement is generated    →  Streamed into your chat input
-5. See the diff               →  Click "View changes" to compare
+1. Type your prompt           →  The badge in the box counts what could be better
+2. Click the badge            →  Score, weak spots, tone (or press Ctrl+Shift+E to skip ahead)
+3. Improve prompt             →  The rewrite streams into a card beside the box
+4. Fill in any blanks         →  Details only you know
+5. Accept                     →  Or Shorter / More detail / Try again / Compare / Dismiss
+6. Changed your mind?         →  Undo puts your draft back
 ```
+
+The shortcut can be changed at `chrome://extensions/shortcuts`. Outside the supported chat sites the badge is not there until you ask for it: click into any text field and use the shortcut or the right-click menu.
 
 ### Enhancement Pipeline
 
@@ -170,17 +183,29 @@ Your Input
          │
          ▼
 ┌─────────────────┐
-│  Provider Call   │  Sends to your configured AI provider
+│  Provider Call   │  One streaming request to your configured AI provider
 └────────┬────────┘
          │
          ▼
 ┌─────────────────┐
-│ Preamble Strip   │  Removes any leaked commentary
+│ Preamble Strip   │  Removes any leaked commentary, as it streams
 └────────┬────────┘
          │
          ▼
    Enhanced Prompt  →  Streamed into your chat input
 ```
+
+---
+
+## Troubleshooting
+
+| Problem | Fix |
+|---|---|
+| **Ollama refused the request (403)** | Older Ollama versions block browser extensions. Set `OLLAMA_ORIGINS=chrome-extension://*` and restart Ollama |
+| **Model not found** | Open Settings and press **↻** next to the model picker to load the provider's current models |
+| **Custom endpoint can't be reached** | Chrome asks for access to that host when you save or test it — allow it. Local servers may also need CORS enabled |
+| **`Ctrl+Shift+E` does nothing** | Another extension or the browser owns the shortcut. Rebind it at `chrome://extensions/shortcuts` |
+| **"PromptCraft was updated. Reload this page"** | The extension was reloaded while the tab was open. Refresh the tab |
 
 ---
 
@@ -208,10 +233,13 @@ PromptCraft/
 ├── content.js           # Content script — DOM injection, context extraction, diff view
 ├── constants.js         # Config — system prompts, templates, models, platform hints
 ├── input-parser.js      # Input analysis — segmentation, intent detection, scoring
-├── popup.html           # Extension popup UI
-├── popup.js             # Popup logic — settings, templates, history, usage analytics
+├── popup.html           # Side panel UI
+├── popup.js             # Side panel logic — settings, templates, history, usage analytics
 ├── popup.css            # Styles with full dark mode support
-├── panel.js             # Floating panel injection for non-chat sites
+├── fonts/               # Bundled Inter font (SIL Open Font License)
+├── tests/               # Service worker tests — run with `node --test` (Node 22+, no dependencies)
+├── scripts/package.js   # Builds the Chrome Web Store zip into dist/
+├── CHANGELOG.md         # Release notes
 ├── icon.png             # Main logo
 ├── icons/               # Extension icons (16, 48, 128px)
 │   ├── icon16.png
@@ -243,7 +271,10 @@ PromptCraft takes privacy seriously:
 - **No data collection** — we don't collect, store, or transmit any personal information
 - **No tracking** — no analytics, cookies, or telemetry
 - **No accounts** — no sign-up required
-- **Local storage** — API keys and history stay on your device
+- **Local storage** — API keys and history stay on your device, and web pages (including the chat sites the extension runs on) cannot read them
+- **Direct to your provider** — your prompt, and the recent conversation when context is on, go only to the AI provider you configured
+- **Runs only where needed** — the extension is active on the supported chat sites, and on other pages only when you invoke it
+- **No third-party requests** — fonts are bundled, so the only network traffic is to your AI provider
 - **Open source** — inspect every line of code yourself
 
 Read the full [Privacy Policy](https://getpromptcraft.vercel.app/privacy.html).

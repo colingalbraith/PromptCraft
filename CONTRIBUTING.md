@@ -35,10 +35,13 @@ Thanks for your interest in contributing! Here's how to get started.
 ## Testing
 
 Before submitting a PR, please verify:
+- `node --test` passes (run from the repo root; needs Node 22+, no install step). The live Ollama test skips itself when Ollama isn't running
 - Extension loads without errors in `chrome://extensions/`
 - Enhancement works on at least one AI chat site
 - Settings save and load correctly
 - No console errors in production
+
+To build the zip for the Chrome Web Store, run `node scripts/package.js`. It writes `dist/promptcraft-<version>.zip` containing only the files the extension runs.
 
 ## Reporting Bugs
 
