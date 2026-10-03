@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { loadWorker, streamResponse, sse, jsonResponse, SENDERS } = require('./harness');
+const { loadWorker, streamResponse, sse, jsonResponse, fakeLanguageModel, SENDERS } = require('./harness');
 
 // Objects built inside the sandbox have another realm's prototypes; flatten them before comparing
 const plain = (value) => JSON.parse(JSON.stringify(value));
@@ -608,4 +608,86 @@ test('a page can ask for the side panel to be opened beside its own tab', async 
   const worker = loadWorker();
   assert.equal((await worker.send({ action: 'openPanel' }, SENDERS.page)).success, true);
   assert.deepEqual(plain(worker.sidePanelOpened), [{ tabId: 7 }]);
+});
+
+// ── The browser's built-in model ────────────────────────────────────────────
+
+const noNetwork = () => { throw new Error('the built-in model must not make a network request'); };
+const builtinWorker = (model) => loadWorker({ sync: { provider: 'builtin' }, fetch: noNetwork, languageModel: model });
+
+test('built-in model: a rewrite streams with no key and no network request', async () => {
+  const model = fakeLanguageModel({ chunks: ['Write a 200-word ', 'overview of dogs ', 'for new owners.'] });
+  const worker = builtinWorker(model);
+  const port = worker.connect();
+  const done = await port.enhance({ prompt: 'write me somthing about dogs' });
+
+  assert.equal(done.type, 'done', done.error);
+  assert.equal(done.text, 'Write a 200-word overview of dogs for new owners.');
+  assert.equal(port.streamed(), done.text);
+  assert.equal(worker.calls.length, 0);
+
+  // The system prompt opens the session; the draft is the one user turn
+  const [session] = plain(model.log.created);
+  assert.equal(session.initialPrompts.length, 1);
+  assert.equal(session.initialPrompts[0].role, 'system');
+  assert.match(session.initialPrompts[0].content, /^You are PromptCraft/);
+  assert.deepEqual(session.expectedOutputs, [{ type: 'text', languages: ['en'] }]);
+  assert.match(model.log.prompts[0], /<draft_prompt>\nwrite me somthing about dogs\n<\/draft_prompt>/);
+  assert.equal(model.log.destroyed, 1, 'the session is released afterwards');
+
+  // Counted as a free, local model
+  const stats = worker.storage.local.data.usageStats.byModel['On-device model'];
+  assert.equal(stats.provider, 'builtin');
+  assert.equal(stats.costUSD, 0);
+  assert.ok(stats.inputTokens > 100);
+
+  const view = await worker.send({ action: 'getPublicSettings' }, SENDERS.page);
+  assert.equal(view.settings.providerLabel, 'Built-in');
+  assert.equal(view.settings.ready, true);
+});
+
+test('built-in model: when it is not ready the reason is given and nothing is run', async () => {
+  const cases = [
+    [fakeLanguageModel({ availability: 'downloadable' }), /has not been downloaded yet/],
+    [fakeLanguageModel({ availability: 'downloading' }), /still downloading/],
+    [fakeLanguageModel({ availability: 'unavailable' }), /can't run on this computer/],
+    [undefined, /This browser has no built-in model/]
+  ];
+  for (const [model, message] of cases) {
+    const worker = builtinWorker(model);
+    const result = await worker.connect().enhance({ prompt: 'write me somthing about dogs' });
+    assert.equal(result.type, 'error');
+    assert.match(result.error, message);
+    assert.equal((await worker.send({ action: 'getPublicSettings' }, SENDERS.page)).settings.ready, false);
+    if (model) assert.equal(model.log.created.length, 0);
+  }
+});
+
+test('built-in model: an over-long prompt gets a plain explanation', async () => {
+  const model = fakeLanguageModel({ chunks: [], error: Object.assign(new Error('The input is too large.'), { name: 'QuotaExceededError' }) });
+  const result = await builtinWorker(model).connect().enhance({ prompt: 'a very long draft' });
+  assert.equal(result.type, 'error');
+  assert.match(result.error, /too long for the built-in model/);
+  assert.equal(model.log.destroyed, 1);
+});
+
+test('built-in model: cancelling stops the session without reporting an error', async () => {
+  const model = fakeLanguageModel({ chunks: ['one ', 'two ', 'three ', 'four ', 'five'], gapMs: 30 });
+  const worker = builtinWorker(model);
+  const port = worker.connect();
+  port.send({ type: 'start', modifier: 'short', prompt: 'write me somthing about dogs' });
+  await port.waitFor('delta');
+  port.disconnect();
+  await new Promise(r => setTimeout(r, 200));
+
+  assert.equal(port.received.some(m => m.type === 'done' || m.type === 'error'), false);
+  assert.equal(model.log.destroyed, 1);
+  assert.equal(worker.storage.local.data.promptHistory, undefined, 'a cancelled rewrite is not recorded');
+});
+
+test('built-in model: only extension pages can ask whether it is available', async () => {
+  const worker = builtinWorker(fakeLanguageModel({ availability: 'downloadable' }));
+  assert.equal((await worker.send({ action: 'getBuiltInState' }, SENDERS.page)).success, false);
+  assert.equal((await worker.send({ action: 'getBuiltInState' }, SENDERS.popup)).state, 'downloadable');
+  assert.equal((await loadWorker().send({ action: 'getBuiltInState' }, SENDERS.popup)).state, 'unsupported');
 });

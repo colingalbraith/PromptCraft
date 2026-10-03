@@ -62,6 +62,7 @@ Write like a human. Get expert-level prompts. Every time.
 |---|---|
 | **Badge in the Prompt Box** | A small badge sits in the corner of the chat box. Click it for a review of your draft, or press `Ctrl+Shift+E` to go straight to a rewrite |
 | **Live Prompt Review** | A 0-100 score and up to three weak spots as you type, each with a one-click *Fix*. Scored locally: nothing is sent to a model until you ask for a rewrite |
+| **No Setup Needed** | Where your browser has a built-in on-device model (Gemini Nano in recent desktop Chrome), PromptCraft can use it: no API key, no cost, and prompts never leave your computer |
 | **Works on Any Site** | Right-click any text field → *Enhance with PromptCraft*, or use the shortcut — no extra permissions |
 | **Suggest, Then Accept** | The rewrite streams into a card beside the box, on every provider. Your text only changes when you press *Accept* (or `Enter`); `Esc` dismisses it |
 | **One-Click Refinement** | After a rewrite: *Shorter*, *More detail*, or *Try again* |
@@ -92,12 +93,15 @@ Write like a human. Get expert-level prompts. Every time.
 | **OpenAI** | Cloud API | GPT-6 Luna, GPT-6.1 Sol, GPT-6 Astra |
 | **Google Gemini** | Cloud API | Gemini 3.5 Flash-Lite, 3.8 Flash, 3.1 Flash-Lite, 3.1 Pro |
 | **Anthropic Claude** | Cloud API | Claude Opus 5.5, Sonnet 5.5, Haiku 4.5, Fable 5.1 |
+| **Built-in** | On-device | The model built into your browser (Gemini Nano in Chrome). Free, no key. Offered only where the browser can run it |
 | **Ollama** | Local | Any installed model (free) |
 | **Custom** | Any | OpenAI-compatible APIs — Groq, Together, OpenRouter, LM Studio, vLLM |
 
 The lists above are only the starting point: press **↻** next to the model picker in Settings to load the provider's current models, so new releases work without an extension update.
 
-> **New to this?** We recommend starting with **Google Gemini** — it has a generous free tier and no credit card required. [Get a key here.](https://aistudio.google.com/app/apikey)
+> **New to this?** If onboarding offers **Built-in**, pick it: there is nothing to set up. Chrome downloads the model once (a few GB) and needs roughly 22 GB of free disk space plus a recent graphics card or 16 GB of RAM. Its rewrites are simpler than a cloud model's.
+>
+> Otherwise start with **Google Gemini** — it has a generous free tier and no credit card required. [Get a key here.](https://aistudio.google.com/app/apikey)
 
 ---
 
@@ -141,7 +145,7 @@ git clone https://github.com/colingalbraith/PromptCraft.git
 
 1. Click the PromptCraft icon in your Chrome toolbar — it opens in the side panel
 2. The onboarding wizard will guide you through picking a provider
-3. Paste your API key (or select Ollama for free local use)
+3. Pick **Built-in** if it is offered (no key needed), paste an API key, or select Ollama for free local use
 4. Click **Get Started** — you're ready to enhance
 
 > **Tip:** Gemini is the easiest way to start. Free API key, no credit card, takes 30 seconds.

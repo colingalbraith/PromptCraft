@@ -55,6 +55,9 @@ async function getLocal(key, fallback) {
 
 // The provider, model and credentials an enhancement will use
 function resolveTarget(settings) {
+  if (settings[STORAGE_KEYS.PROVIDER] === PROVIDERS.BUILTIN) {
+    return { kind: 'builtin', label: BUILTIN_LABEL, model: BUILTIN_MODEL };
+  }
   if (settings[STORAGE_KEYS.PROVIDER] === PROVIDERS.OLLAMA) {
     return {
       kind: 'ollama',
@@ -74,7 +77,27 @@ function resolveTarget(settings) {
   };
 }
 
-function targetProblem(target) {
+// What the browser says about its built-in model: 'available', 'downloadable',
+// 'downloading' or 'unavailable', or 'unsupported' when it has no such model at all
+async function builtInState() {
+  if (typeof LanguageModel === 'undefined') return 'unsupported';
+  try {
+    return await LanguageModel.availability(BUILTIN_SESSION_OPTIONS);
+  } catch {
+    return 'unavailable';
+  }
+}
+
+const BUILTIN_PROBLEMS = {
+  unsupported: 'This browser has no built-in model. Pick another provider in Settings.',
+  unavailable: 'The built-in model can\'t run on this computer right now (it needs about 22 GB of free disk space). Pick another provider in Settings.',
+  downloadable: 'The built-in model has not been downloaded yet. Open Settings in the PromptCraft panel to download it.',
+  downloading: 'The built-in model is still downloading. Try again in a few minutes.'
+};
+
+// Why the target can't be used yet, or null when it is ready
+async function targetProblem(target) {
+  if (target.kind === 'builtin') return own(BUILTIN_PROBLEMS, await builtInState()) || null;
   if (target.kind === 'ollama') return null;
   if (target.kind === API_PROVIDERS.CUSTOM) {
     if (!target.endpoint) return 'Custom endpoint not set. Add it in Settings (e.g., https://api.groq.com/openai/v1).';
@@ -93,7 +116,7 @@ async function getPublicSettings() {
   return {
     providerLabel: target.label,
     model: target.model,
-    ready: !targetProblem(target),
+    ready: !(await targetProblem(target)),
     modifier: settings[STORAGE_KEYS.LAST_MODIFIER],
     styles: [
       ...Object.entries(STYLE_LABELS).map(([id, label]) => ({ id, label })),
@@ -105,7 +128,7 @@ async function getPublicSettings() {
 // ── HTTP Helpers ────────────────────────────────────────────────────────────
 
 // Time allowed until the first response byte. Local models may need to load first.
-const CONNECT_TIMEOUT_MS = { ollama: 120000, custom: 60000, default: 30000 };
+const CONNECT_TIMEOUT_MS = { ollama: 120000, builtin: 120000, custom: 60000, default: 30000 };
 // Time allowed between chunks once a response is streaming
 const IDLE_TIMEOUT_MS = 60000;
 const RETRYABLE_STATUSES = [500, 502, 503, 529];
@@ -209,7 +232,8 @@ async function* readSSE(body, onChunk) {
 // ── Provider Adapters ───────────────────────────────────────────────────────
 // Each adapter builds a streaming request and reads its events. `tunables` are
 // optional request params some models reject: when a 400 names one, it is
-// dropped and the request retried (see openStream).
+// dropped and the request retried (see openStream). The built-in model is the
+// exception: it is a function call, so its adapter runs the completion itself.
 
 // Output-token room for models that reason before they answer
 const REASONING_HEADROOM = 4000;
@@ -370,6 +394,41 @@ const PROVIDER_ADAPTERS = {
         if (event.done_reason === 'length') out.truncated = true;
       }
     }
+  },
+
+  // The browser's own on-device model. A fresh session per call keeps rewrites independent.
+  builtin: {
+    async complete(target, job, watchdog, onDelta) {
+      let session = null;
+      try {
+        watchdog.arm(CONNECT_TIMEOUT_MS.builtin);
+        session = await LanguageModel.create({
+          ...BUILTIN_SESSION_OPTIONS,
+          initialPrompts: [{ role: 'system', content: job.system }],
+          signal: watchdog.signal
+        });
+        let text = '';
+        for await (const chunk of session.promptStreaming(job.user, { signal: watchdog.signal })) {
+          watchdog.arm(IDLE_TIMEOUT_MS);
+          text += chunk;
+          onDelta?.(chunk);
+        }
+        if (!text.trim()) throw new Error('The built-in model returned nothing. Try again.');
+        // The API reports no per-call token counts
+        return { text, truncated: false, usage: { input: estimateTokens(job.system + job.user), output: estimateTokens(text) } };
+      } catch (err) {
+        // Its context window is small: a long draft plus conversation context can overflow it
+        if (err?.name === 'QuotaExceededError') {
+          throw new Error('That is too long for the built-in model. Shorten the prompt, turn off conversation context, or pick another provider in Settings.');
+        }
+        // Before the model is downloaded, a session can only be created from a click in the panel
+        if (err?.name === 'NotAllowedError') throw new Error(BUILTIN_PROBLEMS.downloadable);
+        if (err?.name === 'AbortError' || err?.name === 'Error') throw err;
+        throw new Error(`The built-in model failed: ${err?.message || err?.name || 'unknown error'}`);
+      } finally {
+        session?.destroy();
+      }
+    }
   }
 };
 
@@ -465,16 +524,21 @@ async function consumeStream(adapter, target, job, response, watchdog, onDelta) 
 // Calls onDelta(text) as text arrives; resolves { text, truncated, usage }.
 async function runCompletion(target, job, { signal, onDelta } = {}) {
   const adapter = PROVIDER_ADAPTERS[target.kind];
-  const skipKey = `${target.kind}:${target.model}`;
-  const skip = rejectedParams.get(skipKey) || new Set();
   const watchdog = createWatchdog(signal);
   try {
+    if (adapter.complete) return await adapter.complete(target, job, watchdog, onDelta);
+    const skipKey = `${target.kind}:${target.model}`;
+    const skip = rejectedParams.get(skipKey) || new Set();
     const response = await openStream(adapter, target, job, skip, watchdog);
     rejectedParams.set(skipKey, skip);
     return await consumeStream(adapter, target, job, response, watchdog, onDelta);
   } catch (err) {
     if (signal?.aborted) throw new CancelledError();
-    if (watchdog.timedOut) throw new Error(`${target.label} took too long to respond. Check your connection and try again.`);
+    if (watchdog.timedOut) {
+      throw new Error(target.kind === 'builtin'
+        ? 'The built-in model took too long to respond. Try again, or pick another provider in Settings.'
+        : `${target.label} took too long to respond. Check your connection and try again.`);
+    }
     if (isNetworkError(err)) {
       throw new Error(target.kind === 'ollama'
         ? `Cannot reach Ollama at ${target.endpoint}. Is it running?`
@@ -962,7 +1026,7 @@ async function runEnhancement(message, port, signal) {
 
     const settings = await getSettings();
     const target = resolveTarget(settings);
-    const problem = targetProblem(target);
+    const problem = await targetProblem(target);
     if (problem) throw new Error(problem);
 
     // A content script's tab comes from the sender. The side panel isn't in a
@@ -1179,6 +1243,10 @@ const PRIVILEGED_HANDLERS = {
   },
   async saveSettings(message) {
     await saveSettings(message.settings);
+  },
+  // Whether the browser's own model can be used, for the panel's setup screens
+  async getBuiltInState() {
+    return { state: await builtInState() };
   },
   listModels,
   testConnection: listModels,

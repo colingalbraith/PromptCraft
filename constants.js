@@ -3,7 +3,21 @@
 
 const PROVIDERS = {
   API: 'api',
-  OLLAMA: 'ollama'
+  OLLAMA: 'ollama',
+  BUILTIN: 'builtin'
+};
+
+// ── Built-in Model ──────────────────────────────────────────────────────────
+// The browser's own on-device model (Gemini Nano in Chrome), reached through the
+// Prompt API. No key, no cost, and nothing leaves the computer. It exists only in
+// recent desktop browsers, on hardware the browser considers capable.
+
+const BUILTIN_LABEL = 'Built-in';
+const BUILTIN_MODEL = 'On-device model';
+// Passed to every availability() and create() call, so both describe the same session
+const BUILTIN_SESSION_OPTIONS = {
+  expectedInputs: [{ type: 'text', languages: ['en'] }],
+  expectedOutputs: [{ type: 'text', languages: ['en'] }]
 };
 
 const API_PROVIDERS = {

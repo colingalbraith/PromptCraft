@@ -85,6 +85,13 @@ function initDomRefs() {
     ollamaSettings: $('ollama-settings'),
     providerApiRadio: $('provider-api'),
     providerOllamaRadio: $('provider-ollama'),
+    // Settings — Built-in model
+    providerBuiltinTab: $('provider-builtin-tab'),
+    providerBuiltinRadio: $('provider-builtin'),
+    builtinSettings: $('builtin-settings'),
+    builtinStatus: $('builtin-status'),
+    builtinDownload: $('builtin-download'),
+    builtinUnavailableHint: $('builtin-unavailable-hint'),
     // Settings — API
     apiKey: $('api-key'),
     showKeyBtn: $('show-key'),
@@ -149,6 +156,10 @@ function initDomRefs() {
     onboardingPage: $('onboarding-page'),
     onboardingApiKey: $('onboarding-api-key'),
     onboardingKeySection: $('onboarding-key-section'),
+    onboardingBuiltinOption: document.querySelector('.onboarding-provider-btn[data-provider="builtin"]'),
+    onboardingBuiltinSection: $('onboarding-builtin-section'),
+    onboardingBuiltinNote: $('onboarding-builtin-note'),
+    onboardingBuiltinStatus: $('onboarding-builtin-status'),
     onboardingHint: $('onboarding-hint'),
     onboardingStartBtn: $('onboarding-start'),
     onboardingSkipBtn: $('onboarding-skip'),
@@ -202,6 +213,11 @@ function modelLabel(id) {
 }
 
 function updateProviderStatus(settings) {
+  if (settings[STORAGE_KEYS.PROVIDER] === PROVIDERS.BUILTIN) {
+    els.providerStatusText.textContent = `${BUILTIN_LABEL} \u00B7 ${BUILTIN_MODEL}`;
+    els.providerStatus.classList.toggle('error', builtInState !== 'available');
+    return;
+  }
   const isOllama = settings[STORAGE_KEYS.PROVIDER] === PROVIDERS.OLLAMA;
   let label, model, hasKey;
 
@@ -285,12 +301,11 @@ async function loadSettings() {
   }
 
   // Provider radios
-  if (s.provider === PROVIDERS.OLLAMA) {
-    els.providerOllamaRadio.checked = true;
-  } else {
-    els.providerApiRadio.checked = true;
-  }
+  if (s.provider === PROVIDERS.BUILTIN) els.providerBuiltinRadio.checked = true;
+  else if (s.provider === PROVIDERS.OLLAMA) els.providerOllamaRadio.checked = true;
+  else els.providerApiRadio.checked = true;
   updateProviderTabs();
+  await refreshBuiltInState();
 
   // API provider
   selectedApiProvider = s[STORAGE_KEYS.API_PROVIDER] || API_PROVIDERS.GEMINI;
@@ -347,15 +362,123 @@ async function loadSettings() {
   // Check if onboarding is needed
   if (needsOnboarding(s)) {
     navigateTo(els.onboardingPage);
+    // Where the browser can run its own model, starting takes one click
+    if (builtInUsable()) selectOnboardingProvider(PROVIDERS.BUILTIN);
   }
 }
 
+// The provider chosen with the tabs at the top of Settings
+function selectedProvider() {
+  if (els.providerBuiltinRadio.checked) return PROVIDERS.BUILTIN;
+  return els.providerOllamaRadio.checked ? PROVIDERS.OLLAMA : PROVIDERS.API;
+}
+
 function updateProviderTabs() {
-  const isOllama = els.providerOllamaRadio.checked;
-  els.providerApiTab.classList.toggle('active', !isOllama);
-  els.providerOllamaTab.classList.toggle('active', isOllama);
-  els.apiSettings.classList.toggle('hidden', isOllama);
-  els.ollamaSettings.classList.toggle('hidden', !isOllama);
+  const provider = selectedProvider();
+  els.providerApiTab.classList.toggle('active', provider === PROVIDERS.API);
+  els.providerOllamaTab.classList.toggle('active', provider === PROVIDERS.OLLAMA);
+  els.providerBuiltinTab.classList.toggle('active', provider === PROVIDERS.BUILTIN);
+  els.apiSettings.classList.toggle('hidden', provider !== PROVIDERS.API);
+  els.ollamaSettings.classList.toggle('hidden', provider !== PROVIDERS.OLLAMA);
+  els.builtinSettings.classList.toggle('hidden', provider !== PROVIDERS.BUILTIN);
+}
+
+// ── Built-in Model ──────────────────────────────────────────────────────────
+// The browser's own on-device model. It is offered only where the browser says
+// it can run. Its first use downloads it, which the browser starts only from a click.
+
+// 'available' | 'downloadable' | 'downloading' | 'unavailable' | 'unsupported'
+let builtInState = 'unsupported';
+
+// Shortly after start-up Chrome answers "downloadable" before it has checked disk
+// space and hardware, then corrects itself. So "downloadable" only counts once it
+// has held for a few seconds; until then the model is not offered.
+const BUILTIN_CONFIRM_MS = 2500;
+let builtInConfirmed = false;
+let builtInConfirmTimer = null;
+
+const builtInUsable = () => builtInState === 'available' || builtInState === 'downloading'
+  || (builtInState === 'downloadable' && builtInConfirmed);
+
+async function confirmBuiltIn() {
+  builtInConfirmTimer = null;
+  const resp = await sendMsg({ action: 'getBuiltInState' });
+  builtInConfirmed = resp.success && resp.state === 'downloadable';
+  await refreshBuiltInState();
+  // Where it can run, starting takes one click, unless the user has already picked something
+  if (builtInUsable() && els.onboardingPage.classList.contains('active') && !onboardingSelectedProvider) {
+    selectOnboardingProvider(PROVIDERS.BUILTIN);
+  }
+}
+
+const BUILTIN_STATUS = {
+  available: ['Ready to use.', 'success'],
+  downloadable: ['Your browser downloads the model once (a few GB). You can keep browsing while it does.', ''],
+  downloading: ['Your browser is downloading the model.', 'testing']
+};
+
+async function refreshBuiltInState() {
+  const resp = await sendMsg({ action: 'getBuiltInState' });
+  builtInState = resp.success ? resp.state : 'unsupported';
+  if (builtInState !== 'downloadable') builtInConfirmed = false;
+  else if (!builtInConfirmed && !builtInConfirmTimer) builtInConfirmTimer = setTimeout(confirmBuiltIn, BUILTIN_CONFIRM_MS);
+
+  // Settings: the tab exists where the model can run, or while it is the saved choice
+  els.providerBuiltinTab.classList.toggle('hidden', !builtInUsable() && !els.providerBuiltinRadio.checked);
+  els.builtinUnavailableHint.classList.toggle('hidden', builtInState !== 'unavailable');
+  const [text, kind] = BUILTIN_STATUS[builtInState] || ['This computer can\'t run the built-in model right now. Pick another provider.', 'error'];
+  els.builtinStatus.textContent = text;
+  els.builtinStatus.className = `connection-status ${kind}`;
+  els.builtinDownload.classList.toggle('hidden', builtInState !== 'downloadable' && builtInState !== 'downloading');
+
+  // Onboarding: it becomes the recommended choice in place of Gemini
+  els.onboardingBuiltinOption.classList.toggle('hidden', !builtInUsable());
+  const gemini = document.querySelector('.onboarding-provider-btn[data-provider="gemini"]');
+  gemini.classList.toggle('recommended', !builtInUsable());
+  gemini.querySelector('.onboarding-provider-tag').textContent = builtInUsable() ? 'Free API key' : 'Recommended \u2014 Free';
+  els.onboardingBuiltinNote.textContent = builtInState === 'available'
+    ? 'The model is already on this computer. Your prompts never leave it.'
+    : 'Your browser downloads the model once (a few GB). After that it works offline, and your prompts never leave this computer.';
+  return builtInState;
+}
+
+// Downloads the model, reporting progress as text. Must be called from a click.
+async function downloadBuiltInModel(statusEl) {
+  const report = (text) => {
+    statusEl.textContent = text;
+    statusEl.className = 'connection-status testing';
+  };
+  report('Starting the download...');
+  const session = await LanguageModel.create({
+    ...BUILTIN_SESSION_OPTIONS,
+    monitor(m) {
+      m.addEventListener('downloadprogress', (e) => report(`Downloading the model... ${Math.round(e.loaded * 100)}%`));
+    }
+  });
+  session.destroy();
+}
+
+// After a failed download: if the browser now says the model can't run here,
+// drop it as the onboarding choice and say why.
+async function recheckBuiltIn() {
+  await refreshBuiltInState();
+  if (builtInUsable() || onboardingSelectedProvider !== PROVIDERS.BUILTIN) return;
+  onboardingSelectedProvider = null;
+  els.onboardingBuiltinOption.classList.remove('active');
+  els.onboardingBuiltinSection.classList.add('hidden');
+  els.onboardingStartBtn.disabled = true;
+  showToast('This computer can\'t run the built-in model. Pick another option.', 'info');
+}
+
+async function handleBuiltInDownload() {
+  els.builtinDownload.disabled = true;
+  try {
+    await downloadBuiltInModel(els.builtinStatus);
+  } catch (err) {
+    showToast(`The download did not finish: ${err?.message || 'unknown error'}`, 'error');
+  }
+  els.builtinDownload.disabled = false;
+  await refreshBuiltInState();
 }
 
 // ── Onboarding ──────────────────────────────────────────────────────────────
@@ -370,7 +493,8 @@ function needsOnboarding(settings) {
     settings[STORAGE_KEYS.GEMINI_API_KEY] ||
     settings[STORAGE_KEYS.CLAUDE_API_KEY] ||
     settings[STORAGE_KEYS.CUSTOM_ENDPOINT] ||
-    settings[STORAGE_KEYS.PROVIDER] === PROVIDERS.OLLAMA
+    settings[STORAGE_KEYS.PROVIDER] === PROVIDERS.OLLAMA ||
+    settings[STORAGE_KEYS.PROVIDER] === PROVIDERS.BUILTIN
   );
   if (hasProvider) {
     // Already configured — mark complete and skip
@@ -387,7 +511,23 @@ function completeOnboarding() {
 async function handleOnboardingStart() {
   if (!onboardingSelectedProvider) return;
 
-  if (onboardingSelectedProvider === 'ollama') {
+  if (onboardingSelectedProvider === PROVIDERS.BUILTIN) {
+    if (builtInState !== 'available') {
+      els.onboardingStartBtn.disabled = true;
+      try {
+        await downloadBuiltInModel(els.onboardingBuiltinStatus);
+      } catch {
+        await recheckBuiltIn();
+        if (builtInUsable()) {
+          els.onboardingBuiltinStatus.textContent = 'The download did not finish. Try again, or pick another option.';
+          els.onboardingBuiltinStatus.className = 'connection-status error';
+          els.onboardingStartBtn.disabled = false;
+        }
+        return;
+      }
+    }
+    await sendMsg({ action: 'saveSettings', settings: { [STORAGE_KEYS.PROVIDER]: PROVIDERS.BUILTIN } });
+  } else if (onboardingSelectedProvider === 'ollama') {
     const settings = {
       [STORAGE_KEYS.PROVIDER]: PROVIDERS.OLLAMA,
     };
@@ -454,7 +594,13 @@ function selectOnboardingProvider(provider) {
   const testStatus = document.getElementById('onboarding-test-status');
   if (testStatus) testStatus.textContent = '';
 
-  if (provider === 'ollama') {
+  els.onboardingBuiltinSection.classList.toggle('hidden', provider !== PROVIDERS.BUILTIN);
+  els.onboardingBuiltinStatus.textContent = '';
+  if (provider === PROVIDERS.BUILTIN) {
+    els.onboardingKeySection.classList.add('hidden');
+    if (ollamaSection) ollamaSection.classList.add('hidden');
+    els.onboardingStartBtn.disabled = false;
+  } else if (provider === 'ollama') {
     els.onboardingKeySection.classList.add('hidden');
     if (ollamaSection) ollamaSection.classList.remove('hidden');
     els.onboardingStartBtn.disabled = false;
@@ -884,9 +1030,14 @@ function showValidationError(fieldId, message) {
 
 function validateSettings() {
   clearValidationErrors();
-  const isOllama = els.providerOllamaRadio.checked;
+  const provider = selectedProvider();
 
-  if (isOllama) {
+  if (provider === PROVIDERS.BUILTIN) {
+    if (builtInState !== 'available') {
+      showToast('Download the built-in model first.', 'error');
+      return false;
+    }
+  } else if (provider === PROVIDERS.OLLAMA) {
     const endpoint = els.ollamaEndpoint.value.trim();
     if (endpoint && !endpoint.startsWith('http://') && !endpoint.startsWith('https://')) {
       showValidationError('ollama-endpoint', 'Endpoint must start with http:// or https://');
@@ -932,15 +1083,15 @@ function requestEndpointAccess(url) {
 
 // The endpoint currently typed into Settings that needs its own host access, if any
 function typedEndpoint() {
-  if (els.providerOllamaRadio.checked) return els.ollamaEndpoint.value.trim();
-  return isCustomProvider() ? els.customEndpoint.value.trim() : '';
+  const provider = selectedProvider();
+  if (provider === PROVIDERS.OLLAMA) return els.ollamaEndpoint.value.trim();
+  return provider === PROVIDERS.API && isCustomProvider() ? els.customEndpoint.value.trim() : '';
 }
 
 async function handleSaveSettings() {
   // Validate before saving
   if (!validateSettings()) return;
 
-  const isOllama = els.providerOllamaRadio.checked;
   // Saving doesn't depend on the answer, so the prompt is not awaited
   requestEndpointAccess(typedEndpoint());
 
@@ -948,7 +1099,7 @@ async function handleSaveSettings() {
   saveCurrentApiFieldsToState();
 
   const settings = {
-    [STORAGE_KEYS.PROVIDER]: isOllama ? PROVIDERS.OLLAMA : PROVIDERS.API,
+    [STORAGE_KEYS.PROVIDER]: selectedProvider(),
     [STORAGE_KEYS.API_PROVIDER]: selectedApiProvider,
     [STORAGE_KEYS.OPENAI_API_KEY]: apiKeys.openai.trim(),
     [STORAGE_KEYS.OPENAI_MODEL]: apiModels.openai,
@@ -1670,7 +1821,7 @@ async function loadUsagePage() {
   if (settingsResp.success) {
     cachedProvider = settingsResp.settings[STORAGE_KEYS.PROVIDER];
   }
-  const isOllama = cachedProvider === PROVIDERS.OLLAMA;
+  const isLocal = cachedProvider === PROVIDERS.OLLAMA || cachedProvider === PROVIDERS.BUILTIN;
 
   // Fetch usage stats
   const usageResp = await sendMsg({ action: 'getUsageStats' });
@@ -1680,9 +1831,9 @@ async function loadUsagePage() {
   // Top stat cards
   els.usageTotalEnhancements.textContent = stats.totalEnhancements || 0;
 
-  if (isOllama && stats.totalCostUSD === 0) {
+  if (isLocal && stats.totalCostUSD === 0) {
     els.usageTotalCost.textContent = 'Free';
-    els.usageTotalCost.title = 'Ollama runs locally';
+    els.usageTotalCost.title = 'The model runs on this computer';
   } else {
     els.usageTotalCost.textContent = '$' + (stats.totalCostUSD || 0).toFixed(4);
     els.usageTotalCost.title = 'Estimated cost based on token usage';
@@ -1722,7 +1873,7 @@ function renderModelBreakdown(byModel) {
     const tokens = (data.inputTokens || 0) + (data.outputTokens || 0);
     // Local models are free; models with no price on file show a dash rather than a made-up $0
     let costText = '—';
-    if (data.provider === PROVIDERS.OLLAMA) costText = 'Free';
+    if (data.provider === PROVIDERS.OLLAMA || data.provider === PROVIDERS.BUILTIN) costText = 'Free';
     else if (TOKEN_COSTS[model] || data.costUSD > 0) costText = '$' + (data.costUSD || 0).toFixed(4);
 
     const friendlyName = modelLabel(model);
@@ -2019,7 +2170,10 @@ document.addEventListener('DOMContentLoaded', () => {
   els.navWrite.addEventListener('click', () => navigateTo(els.mainPage));
   els.templatesBtn.addEventListener('click', openTemplatesPage);
   els.historyBtn.addEventListener('click', () => { loadHistory(); navigateTo(els.historyPage); });
-  els.settingsBtn.addEventListener('click', () => navigateTo(els.settingsPage));
+  els.settingsBtn.addEventListener('click', () => {
+    navigateTo(els.settingsPage);
+    refreshBuiltInState();
+  });
 
   // Templates
   els.backFromTemplateDetail.addEventListener('click', closeTemplateDetail);
@@ -2047,6 +2201,12 @@ document.addEventListener('DOMContentLoaded', () => {
     els.providerOllamaRadio.checked = true;
     updateProviderTabs();
   });
+  els.providerBuiltinTab.addEventListener('click', () => {
+    els.providerBuiltinRadio.checked = true;
+    updateProviderTabs();
+    refreshBuiltInState();
+  });
+  els.builtinDownload.addEventListener('click', handleBuiltInDownload);
   els.providerApiRadio.addEventListener('change', updateProviderTabs);
   els.providerOllamaRadio.addEventListener('change', updateProviderTabs);
 

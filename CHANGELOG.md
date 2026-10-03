@@ -7,6 +7,7 @@
 - **Badge in the prompt box.** A small badge in the corner of the text box replaces the floating button. It shows how many things the review found and opens a card with the score, the weak spots (each with a one-click *Fix*), the tone, and *Improve prompt*.
 - **Suggest, then accept.** A rewrite streams into a card beside the box and is only written into it when you press *Accept* or `Enter`. *Dismiss* or `Esc` leaves your text alone, and *Undo* is offered after accepting.
 - **Live prompt review**, on the page and in the side panel: a 0-100 score and up to three things to improve as you type. It is scored locally; nothing is sent to a model until you ask for a rewrite.
+- **Built-in model, no setup.** Where the browser has its own on-device model (Gemini Nano in recent desktop Chrome), PromptCraft offers it as a provider and as the recommended choice in onboarding: no API key, no cost, and prompts never leave the computer. It is hidden where the browser or the computer cannot run it.
 - **Streaming on every provider**, including Claude and Ollama. Press `Esc` or *Stop* to cancel.
 - **Works on any site.** Right-click a text field → *Enhance with PromptCraft*, or press `Ctrl+Shift+E`. The shortcut can be rebound at `chrome://extensions/shortcuts`.
 - **One-click refinement** after a rewrite: *Shorter*, *More detail*, *Try again*.

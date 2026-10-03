@@ -129,9 +129,12 @@
           <div class="provider-tabs">
             <button id="provider-api-tab" class="provider-tab active">API</button>
             <button id="provider-ollama-tab" class="provider-tab">Ollama</button>
+            <button id="provider-builtin-tab" class="provider-tab hidden">Built-in</button>
           </div>
           <input type="radio" name="provider" id="provider-api" value="api" checked hidden>
           <input type="radio" name="provider" id="provider-ollama" value="ollama" hidden>
+          <input type="radio" name="provider" id="provider-builtin" value="builtin" hidden>
+          <p id="builtin-unavailable-hint" class="hint hidden">Your browser has a built-in model that needs no API key, but this computer can't run it right now. It needs about 22 GB of free disk space.</p>
         </div>
 
         <!-- API Settings -->
@@ -198,6 +201,13 @@
             </div>
           </div>
           <div id="ollama-status" class="connection-status" role="status"></div>
+        </div>
+
+        <!-- Built-in model settings -->
+        <div id="builtin-settings" class="settings-section hidden">
+          <p class="hint">Uses the AI model built into your browser (Gemini Nano in Chrome). No API key and no cost, and your prompts never leave this computer. Rewrites are simpler than a cloud model's.</p>
+          <div id="builtin-status" class="connection-status" role="status"></div>
+          <button id="builtin-download" class="secondary-btn hidden">Download the model</button>
         </div>
 
         <!-- Presets -->
@@ -389,11 +399,16 @@
         <div class="onboarding-content">
           <img src="icon.png" class="onboarding-logo" alt="PromptCraft">
           <h2 class="onboarding-title">Welcome to PromptCraft</h2>
-          <p class="onboarding-subtitle">You'll need an AI provider API key to enhance prompts. Pick one below.</p>
+          <p class="onboarding-subtitle">Choose what rewrites your prompts. You can change it later in Settings.</p>
 
           <!-- Step 1: Pick provider -->
           <div id="onboarding-step-1">
             <div class="onboarding-providers">
+              <!-- Shown only where the browser can run its own model -->
+              <button class="onboarding-provider-btn recommended hidden" data-provider="builtin">
+                <span class="onboarding-provider-name">Built-in</span>
+                <span class="onboarding-provider-tag">Recommended &mdash; No setup, free, runs on this computer</span>
+              </button>
               <button class="onboarding-provider-btn recommended" data-provider="gemini">
                 <span class="onboarding-provider-name">Gemini</span>
                 <span class="onboarding-provider-tag">Recommended &mdash; Free</span>
@@ -424,6 +439,15 @@
               </div>
             </div>
             <div id="onboarding-test-status" class="connection-status" role="status"></div>
+          </div>
+
+          <!-- Built-in model: nothing to enter -->
+          <div id="onboarding-builtin-section" class="onboarding-key-section hidden">
+            <div class="onboarding-instructions">
+              <p><strong>Nothing to set up.</strong></p>
+              <p id="onboarding-builtin-note" class="hint"></p>
+            </div>
+            <div id="onboarding-builtin-status" class="connection-status" role="status"></div>
           </div>
 
           <!-- Ollama instructions -->

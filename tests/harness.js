@@ -54,6 +54,37 @@ function streamResponse(chunks, { status = 200, gapMs = 0, signal } = {}) {
   return new Response(body, { status });
 }
 
+// A stand-in for the browser's built-in model (the Prompt API's LanguageModel).
+// `availability` is what it reports; `chunks` is what a session streams back;
+// `error` makes the stream fail after them. `log` records what the worker did.
+function fakeLanguageModel({ availability = 'available', chunks = ['Rewritten ', 'prompt.'], error = null, gapMs = 0 } = {}) {
+  const log = { created: [], prompts: [], destroyed: 0 };
+  return {
+    log,
+    availability: async () => availability,
+    async create(options) {
+      log.created.push(options);
+      return {
+        promptStreaming(input, { signal } = {}) {
+          log.prompts.push(input);
+          return new ReadableStream({
+            async start(controller) {
+              for (const chunk of chunks) {
+                if (gapMs) await new Promise(r => setTimeout(r, gapMs));
+                if (signal?.aborted) return controller.error(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+                controller.enqueue(chunk);
+              }
+              if (error) controller.error(error);
+              else controller.close();
+            }
+          });
+        },
+        destroy() { log.destroyed++; }
+      };
+    }
+  };
+}
+
 const sse = (events) => events.map(e => `data: ${typeof e === 'string' ? e : JSON.stringify(e)}\n\n`);
 const jsonResponse = (payload, status = 200) => new Response(JSON.stringify(payload), { status });
 
@@ -63,8 +94,9 @@ const jsonResponse = (payload, status = 200) => new Response(JSON.stringify(payl
  * @param {object} [options.local]  initial chrome.storage.local contents
  * @param {(call: {url: string, body: any, headers: object, signal: AbortSignal, init: object}) => Response|Promise<Response>} options.fetch
  *   Answers each request the worker makes. Use `fetch(call.url, call.init)` to pass one through to a real server.
+ * @param {object} [options.languageModel]  the browser's built-in model, e.g. fakeLanguageModel(); absent by default
  */
-function loadWorker({ sync = {}, local = {}, fetch: respond } = {}) {
+function loadWorker({ sync = {}, local = {}, fetch: respond, languageModel } = {}) {
   const calls = [];
   const tabMessages = [];
   const events = {
@@ -116,6 +148,7 @@ function loadWorker({ sync = {}, local = {}, fetch: respond } = {}) {
     chrome, fetch: fakeFetch, console, setTimeout, clearTimeout, AbortController, TextDecoder, TextEncoder,
     structuredClone, URL
   });
+  if (languageModel) sandbox.LanguageModel = languageModel;
   sandbox.importScripts = (...files) => {
     for (const file of files) vm.runInContext(fs.readFileSync(path.join(ROOT, file), 'utf8'), sandbox, { filename: file });
   };
@@ -178,4 +211,4 @@ function loadWorker({ sync = {}, local = {}, fetch: respond } = {}) {
   return { chrome, calls, tabMessages, events, connect, send, sandbox, storage: chrome.storage, sidePanelBehavior: () => sidePanelBehavior, sidePanelOpened };
 }
 
-module.exports = { loadWorker, streamResponse, sse, jsonResponse, SENDERS };
+module.exports = { loadWorker, streamResponse, sse, jsonResponse, fakeLanguageModel, SENDERS };
