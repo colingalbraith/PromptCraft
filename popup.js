@@ -342,6 +342,7 @@ async function loadSettings() {
     els.deepAnalysisToggle.checked = !!s[STORAGE_KEYS.DEEP_ANALYSIS];
   }
   els.multiStepToggle.checked = !!s[STORAGE_KEYS.MULTI_STEP];
+  els.includeContext.checked = s[STORAGE_KEYS.USE_CONTEXT] !== false;
 
   // Modifier
   if (s.lastModifier) selectedModifier = s.lastModifier;
@@ -2287,6 +2288,11 @@ document.addEventListener('DOMContentLoaded', () => {
   els.exportHistoryBtn.addEventListener('click', handleExportHistory);
   els.clearHistoryBtn.addEventListener('click', handleClearHistory);
   els.historySearch.addEventListener('input', (e) => filterHistory(e.target.value.trim()));
+
+  // Whether rewrites include the conversation on the page. Remembered, and shared with the badge's card.
+  els.includeContext.addEventListener('change', () => {
+    sendMsg({ action: 'saveSettings', settings: { [STORAGE_KEYS.USE_CONTEXT]: els.includeContext.checked } });
+  });
 
   // Context preview
   els.viewContextBtn.addEventListener('click', showContextPreview);

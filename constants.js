@@ -278,6 +278,7 @@ const STORAGE_KEYS = {
   UNDO_STATS: 'undoStats',
   USAGE_STATS: 'usageStats',
   MULTI_STEP: 'multiStep',
+  USE_CONTEXT: 'useContext',
   MODEL_CACHE: 'modelCache',
   DARK_MODE: 'darkMode'
 };
@@ -308,6 +309,8 @@ const DEFAULT_SETTINGS = {
   [STORAGE_KEYS.LAST_MODIFIER]: 'short',
   [STORAGE_KEYS.DEEP_ANALYSIS]: false,
   [STORAGE_KEYS.MULTI_STEP]: false,
+  // Whether a rewrite on a chat site takes the conversation on the page into account
+  [STORAGE_KEYS.USE_CONTEXT]: true,
   [STORAGE_KEYS.ONBOARDING_COMPLETE]: false,
   [STORAGE_KEYS.DARK_MODE]: 'auto'
 };

@@ -333,6 +333,9 @@
     .pc-chip:hover { border-color: var(--pc-accent); }
     .pc-chip[aria-pressed="true"] { border-color: var(--pc-accent); background: var(--pc-accent-wash); color: var(--pc-accent); font-weight: 600; }
 
+    .pc-context { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--pc-ink-soft); cursor: pointer; }
+    .pc-context input { width: 14px; height: 14px; margin: 0; flex-shrink: 0; accent-color: var(--pc-accent); cursor: pointer; }
+
     .pc-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--pc-ok); flex-shrink: 0; }
     .pc-dot.pc-off { background: var(--pc-error); }
     .pc-provider { flex: 1; min-width: 0; margin-left: -6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1448,7 +1451,13 @@
     tones.setAttribute('role', 'group');
     tones.setAttribute('aria-label', 'Tone');
     tone.append(el('span', 'pc-label', 'Tone'), tones);
-    body.append(el('div', 'pc-issues'), tone);
+    // Chat sites: whether the conversation on the page goes to the model along with the draft
+    const context = el('label', 'pc-context');
+    const useContext = el('input');
+    useContext.type = 'checkbox';
+    useContext.addEventListener('change', () => setUseContext(useContext.checked));
+    context.append(useContext, el('span'));
+    body.append(el('div', 'pc-issues'), tone, context);
 
     const actions = el('div', 'pc-actions');
     const improve = uiButton('Improve prompt', 'pc-btn pc-primary', () => startEnhance());
@@ -1502,7 +1511,7 @@
     card.querySelector('.pc-primary').disabled = !hasText;
   }
 
-  // Fills the review card's tone chips and provider line from the worker's settings
+  // Fills the review card's tone chips, conversation switch and provider line from the worker's settings
   function renderSettings() {
     if (!card || card.dataset.view !== 'review') return;
     const tones = card.querySelector('.pc-tones');
@@ -1513,6 +1522,15 @@
       chip.setAttribute('aria-pressed', String(style.id === publicSettings.modifier));
       tones.appendChild(chip);
     }
+    const conversation = IS_CHAT_SITE ? extractPageConversation() : null;
+    const context = card.querySelector('.pc-context');
+    context.hidden = !conversation;
+    if (conversation) {
+      const count = conversation.messageCount;
+      context.querySelector('input').checked = publicSettings?.useContext !== false;
+      context.querySelector('span').textContent = `Use this conversation for context (${count} message${count === 1 ? '' : 's'})`;
+    }
+
     const ready = !!publicSettings && publicSettings.ready;
     card.querySelector('.pc-dot').classList.toggle('pc-off', !!publicSettings && !ready);
     card.querySelector('.pc-provider').textContent = !publicSettings ? '…'
@@ -1525,6 +1543,12 @@
     publicSettings.modifier = id;
     card.querySelectorAll('.pc-chip[data-tone]').forEach(chip => chip.setAttribute('aria-pressed', String(chip.dataset.tone === id)));
     send({ action: 'setModifier', modifier: id });
+  }
+
+  function setUseContext(value) {
+    if (!publicSettings) return;
+    publicSettings.useContext = value;
+    send({ action: 'setUseContext', value });
   }
 
   // Provider setup, history and templates live in the side panel
@@ -1611,7 +1635,7 @@
       type: 'start',
       prompt: original,
       modifier: publicSettings?.modifier,
-      context: IS_CHAT_SITE ? extractPageConversation(original) : null,
+      context: IS_CHAT_SITE && publicSettings?.useContext !== false ? extractPageConversation(original) : null,
       refine: base ? options.refine : null,
       focus: options.focus || null
     });

@@ -118,6 +118,7 @@ async function getPublicSettings() {
     model: target.model,
     ready: !(await targetProblem(target)),
     modifier: settings[STORAGE_KEYS.LAST_MODIFIER],
+    useContext: settings[STORAGE_KEYS.USE_CONTEXT] !== false,
     styles: [
       ...Object.entries(STYLE_LABELS).map(([id, label]) => ({ id, label })),
       ...presets.map(p => ({ id: p.id, label: p.name }))
@@ -1033,15 +1034,17 @@ async function runEnhancement(message, port, signal) {
     // tab, so it names the tab it is working on.
     const fromPanel = isExtensionPage(port.sender) && Number.isInteger(message.tabId);
     const tabId = port.sender?.tab?.id || (fromPanel ? message.tabId : null);
+    // The user can keep the conversation on the page out of rewrites altogether
+    const useContext = settings[STORAGE_KEYS.USE_CONTEXT] !== false;
     const request = {
       prompt: message.prompt,
       modifier: typeof message.modifier === 'string' ? message.modifier : settings[STORAGE_KEYS.LAST_MODIFIER],
       refine: message.refine || null,
       focus: message.focus || null,
-      context: message.context || null
+      context: useContext ? message.context || null : null
     };
     // The side panel can't see the page, so it asks the worker to fetch the conversation
-    if (message.includeContext && !request.context) request.context = await getConversationFromTab(tabId);
+    if (useContext && message.includeContext && !request.context) request.context = await getConversationFromTab(tabId);
     request.session = await getTabSession(tabId);
 
     const usages = [];
@@ -1231,6 +1234,11 @@ const PUBLIC_HANDLERS = {
     const { styles } = await getPublicSettings();
     if (!styles.some(s => s.id === message.modifier)) throw new Error('Unknown tone.');
     await saveSettings({ [STORAGE_KEYS.LAST_MODIFIER]: message.modifier });
+  },
+  // The "use this conversation" switch in the badge's card
+  async setUseContext(message) {
+    if (typeof message.value !== 'boolean') throw new Error('Expected true or false.');
+    await saveSettings({ [STORAGE_KEYS.USE_CONTEXT]: message.value });
   },
   async recordUndo(message) {
     await recordUndo(String(message.modifier || 'short'), typeof message.platform === 'string' ? message.platform : null);

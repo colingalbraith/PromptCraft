@@ -469,7 +469,7 @@ test('content scripts get a public view with no credentials', async () => {
   assert.ok(!JSON.stringify(resp).includes('sk-secret'));
   assert.deepEqual(
     plain({ ...resp.settings, styles: resp.settings.styles.map(s => s.id) }),
-    { providerLabel: 'OpenAI', model: 'gpt-6-luna', ready: true, modifier: 'technical',
+    { providerLabel: 'OpenAI', model: 'gpt-6-luna', ready: true, modifier: 'technical', useContext: true,
       styles: ['short', 'detailed', 'creative', 'technical', 'cot', 'custom_1'] }
   );
 });
@@ -484,6 +484,25 @@ test('the popup can read and save settings; unknown keys are ignored', async () 
   assert.equal(worker.storage.local.data.promptHistory, undefined);
   const resp = await worker.send({ action: 'getSettings' });
   assert.equal(resp.settings.openaiApiKey, 'sk-new');
+});
+
+test('the conversation on the page can be kept out of rewrites', async () => {
+  const context = { platform: 'ChatGPT', conversation: '[User]: my cat is called Biscuit', messageCount: 1 };
+  const worker = openaiWorker('ok then');
+  await worker.connect().enhance({ prompt: 'write about my pet', context });
+  assert.match(worker.calls[0].body.input, /Biscuit/);
+  assert.equal(worker.storage.local.data.promptHistory[0].platform, 'ChatGPT');
+
+  assert.equal((await worker.send({ action: 'setUseContext', value: 'no' }, SENDERS.page)).success, false);
+  assert.equal((await worker.send({ action: 'setUseContext', value: false }, SENDERS.page)).success, true);
+  assert.equal((await worker.send({ action: 'getPublicSettings' }, SENDERS.page)).settings.useContext, false);
+
+  // Switched off: dropped even if a page still sends it, and the panel's request to fetch it is ignored
+  await worker.connect().enhance({ prompt: 'write about my pet', context });
+  assert.doesNotMatch(worker.calls[1].body.input, /Biscuit/);
+  assert.equal(worker.storage.local.data.promptHistory[0].platform, null);
+  await worker.connect(SENDERS.popup).enhance({ prompt: 'write about my pet', includeContext: true, tabId: 7 });
+  assert.equal(worker.tabMessages.filter(m => m.message.action === 'getConversation').length, 0);
 });
 
 test('a page can switch tone only to one that exists', async () => {
