@@ -1553,7 +1553,9 @@
 
   // Provider setup, history and templates live in the side panel
   function openPanel() {
-    send({ action: 'openPanel' });
+    send({ action: 'openPanel' }, (reply) => {
+      if (!reply || !reply.success) showToast('Open PromptCraft from its icon in the toolbar', 4000);
+    });
   }
 
   // ── Rewrite ─────────────────────────────────────────────────────────────

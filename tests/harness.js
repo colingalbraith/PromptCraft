@@ -106,6 +106,8 @@ function loadWorker({ sync = {}, local = {}, fetch: respond, languageModel } = {
 
   let sidePanelBehavior = null;
   const sidePanelOpened = [];
+  // Like Chrome, a user gesture sent along with a message lasts only while its listener runs synchronously
+  let userGesture = false;
   const chrome = {
     runtime: {
       id: EXTENSION_ID,
@@ -126,7 +128,10 @@ function loadWorker({ sync = {}, local = {}, fetch: respond, languageModel } = {
     commands: { onCommand: events.onCommand },
     sidePanel: {
       setPanelBehavior: async (options) => { sidePanelBehavior = options; },
-      open: async (options) => { sidePanelOpened.push(options); }
+      open: async (options) => {
+        if (!userGesture) throw new Error('`sidePanel.open()` may only be called in response to a user gesture.');
+        sidePanelOpened.push(options);
+      }
     }
   };
 
@@ -198,12 +203,19 @@ function loadWorker({ sync = {}, local = {}, fetch: respond, languageModel } = {
     return client;
   }
 
-  // Sends a one-shot message the way chrome.runtime.sendMessage does
-  function send(message, sender = SENDERS.popup) {
+  // Sends a one-shot message the way chrome.runtime.sendMessage does.
+  // `userGesture`: the message was sent from a click, as the in-page "Open panel" link is.
+  function send(message, sender = SENDERS.popup, { userGesture: withGesture = false } = {}) {
     return new Promise((resolve) => {
       let answered = false;
       const respondOnce = (value) => { answered = true; resolve(value); };
-      const keptOpen = events.onMessage.listeners.map(fn => fn(message, sender, respondOnce)).some(Boolean);
+      userGesture = withGesture;
+      let keptOpen;
+      try {
+        keptOpen = events.onMessage.listeners.map(fn => fn(message, sender, respondOnce)).some(Boolean);
+      } finally {
+        userGesture = false;
+      }
       if (!keptOpen && !answered) resolve(undefined);
     });
   }

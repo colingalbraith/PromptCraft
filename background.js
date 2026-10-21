@@ -1306,8 +1306,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (privileged) sendResponse({ success: false, error: 'Not available from this page.' });
     return false;
   }
-  Promise.resolve()
-    .then(() => handler(message, sender))
+  // The handler starts right away, not in a later task: a user gesture sent with the
+  // message (the page's "Open panel" link) only lasts while this listener runs
+  new Promise(resolve => resolve(handler(message, sender)))
     .then(
       (result) => sendResponse({ success: true, ...result }),
       (err) => sendResponse({ success: false, error: err?.message || 'Something went wrong.' })

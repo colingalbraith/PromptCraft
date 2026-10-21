@@ -625,8 +625,13 @@ test('a draft is reviewed locally, with no network request', async () => {
 
 test('a page can ask for the side panel to be opened beside its own tab', async () => {
   const worker = loadWorker();
-  assert.equal((await worker.send({ action: 'openPanel' }, SENDERS.page)).success, true);
+  // The click's user gesture only lasts while the listener runs, so the panel must be opened without delay
+  assert.equal((await worker.send({ action: 'openPanel' }, SENDERS.page, { userGesture: true })).success, true);
   assert.deepEqual(plain(worker.sidePanelOpened), [{ tabId: 7 }]);
+  // Without a click, Chrome refuses, and the page is told why
+  const refused = await worker.send({ action: 'openPanel' }, SENDERS.page);
+  assert.equal(refused.success, false);
+  assert.match(refused.error, /user gesture/);
 });
 
 // ── The browser's built-in model ────────────────────────────────────────────
