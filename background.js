@@ -566,15 +566,39 @@ async function runCompletion(target, job, { signal, onDelta } = {}) {
 // Only a short first line that is unmistakably a lead-in is removed — the
 // rewrite itself may legitimately begin with "Below is..." or "I've created...".
 
+// The opening line of the built-in tone templates ("Enhance this prompt to be ...:")
+const ECHOED_INSTRUCTION = /^enhance this prompt\b[^\n]{0,100}:\s*$/i;
+
 const LEAD_IN_LINE = new RegExp(
   "^(?:(?:sure|okay|ok|certainly|absolutely|of course|great)\\b[!,.]?\\s*)?" +
   "(?:here(?:'s| is| are)|below is)\\b[^\\n]{0,40}\\b(?:enhanced|improved|refined|rewritten|optimized|revised|updated|polished)\\b[^\\n]{0,40}:\\s*$" +
   "|^i(?:'ve| have) (?:enhanced|improved|refined|rewritten|optimized|revised) (?:your|the) prompt\\b[^\\n]{0,60}:\\s*$" +
-  "|^(?:sure|okay|ok|certainly|absolutely|of course)[!.]?$", 'i');
+  "|^(?:sure|okay|ok|certainly|absolutely|of course)[!.]?$" +
+  // The first line of a tone template, repeated back by a small model
+  "|" + ECHOED_INSTRUCTION.source, 'i');
 const LABEL_PREFIX = /^(?:\*\*|#{1,3}\s*)?(?:(?:enhanced|improved|refined|rewritten|optimized|revised) )?prompt(?:\*\*)?\s*:(?:\*\*)?\s*/i;
 
 // First words that chatter or a label can begin with
-const LEAD_IN_OPENER = /^(?:sure|okay|ok|certainly|absolutely|of|great|here|here's|below|i|i've|enhanced|improved|refined|rewritten|optimized|revised|prompt)$/i;
+const LEAD_IN_OPENER = /^(?:sure|okay|ok|certainly|absolutely|of|great|here|here's|below|i|i've|enhance|enhanced|improved|refined|rewritten|optimized|revised|prompt)$/i;
+
+// A bullet's opening words, for comparing it with the template guidelines
+const openingWords = (line) => line.toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(Boolean).slice(0, 4).join(' ');
+const GUIDELINE_OPENINGS = new Set(Object.values(TEMPLATES).flatMap(template => template.split('\n'))
+  .filter(line => line.startsWith('- ')).map(line => openingWords(line.slice(2))));
+const BULLET = /^\s*[-*•]\s+/;
+
+// A model that repeated its instructions often appends the template's guidelines
+// too, under a heading such as "**Constraints:**". That list is cut off.
+function stripEchoedGuidelines(text) {
+  const lines = text.split('\n');
+  const copied = lines.findIndex(line => BULLET.test(line) && GUIDELINE_OPENINGS.has(openingWords(line.replace(BULLET, ''))));
+  if (copied === -1) return text;
+  let cut = copied;
+  while (cut > 0 && BULLET.test(lines[cut - 1])) cut--;
+  if (cut > 0 && /^\W*[A-Za-z][A-Za-z ]{1,30}:\W*$/.test(lines[cut - 1])) cut--;
+  const kept = lines.slice(0, cut).join('\n').trim();
+  return kept || text;
+}
 
 function isLeadInLine(line) {
   const trimmed = line.trim();
@@ -612,8 +636,10 @@ function stripWrapperTags(text) {
 const QUOTE_PAIRS = { '"': '"', '“': '”' };
 
 function cleanEnhancedText(raw) {
+  const unthought = stripThinkBlock(raw || '');
   // Chatter can come before the tags or inside them
-  let text = stripWrapperTags(stripLeadIn(stripWrapperTags(stripThinkBlock(raw || ''))));
+  let text = stripWrapperTags(stripLeadIn(stripWrapperTags(unthought)));
+  if (ECHOED_INSTRUCTION.test(unthought.trim().split('\n')[0])) text = stripEchoedGuidelines(text);
 
   // Unwrap a response that is one code fence or one quoted string
   const fence = text.match(/^```[\w-]*\n([\s\S]*?)\n?```$/);
@@ -767,12 +793,38 @@ function buildContextBlock(context, session) {
       'Use this to understand what has already been discussed, and make the enhanced prompt build on it.\n';
   }
 
-  // Previous enhancement in this tab
+  // The previous rewrite in this tab, when the new draft continues that work
   if (session) {
-    block += `\nPrevious enhancement in this session (${session.modifier} style):\nOriginal: "${session.input}"\nYour enhancement: "${session.output}"\nConsider this trajectory when enhancing the new prompt.\n`;
+    block += `\nEarlier in this tab you rewrote a related draft (${session.modifier} style):\nDraft: "${session.input}"\nYour rewrite: "${session.output}"\n` +
+      'The new draft continues that work: keep the two consistent, but rewrite the new draft, not the earlier one.\n';
   }
   return block;
 }
+
+const countWords = (text) => (String(text).match(/\S+/g) || []).length;
+
+// Words too general to show that two drafts are about the same thing
+const COMMON_WORDS = new Set(('about also another because before could does doesnt done dont each even from give good have help into just know like make many more most much need only other over please same should some something such than that their them then there these they thing things this those very want what when where which while with work would write your ' +
+  'answer based clear concise create describe detailed ensure example examples explain focus focusing format include including information list provide response specific step steps using').split(' '));
+
+// Asking to build on an earlier result ("the same for...", "again", "instead")
+const REFERS_BACK = /\b(same|again|instead|similar|previous|as before|like before|the above|another one)\b/i;
+
+// The previous rewrite in a tab helps a follow-up, but with an unrelated new draft
+// small models rewrite the previous one instead. It is used only when the drafts
+// share a topic word or the new one refers back.
+function continuesSession(prompt, session) {
+  if (REFERS_BACK.test(prompt)) return true;
+  const topicWords = (text) => new Set((String(text).toLowerCase().match(/[a-z][a-z0-9'-]{3,}/g) || []).filter(w => !COMMON_WORDS.has(w)));
+  const previous = topicWords(`${session.input} ${session.output}`);
+  return [...topicWords(prompt)].some(word => previous.has(word));
+}
+
+// The date matters only to time-sensitive requests; otherwise small models copy it into the rewrite
+const TIME_SENSITIVE = /\b(today|tonight|tomorrow|yesterday|now|current|currently|latest|recent|recently|upcoming|deadline|news|(this|next|last) (week|month|quarter|year)|(19|20)\d\d)\b/i;
+
+// Ends every rewrite request, so small models don't continue the instructions instead
+const FINAL_INSTRUCTION = '\n\nNow write the rewritten prompt. Reply with the prompt alone: no heading, label, notes or repeated instructions.';
 
 // Converts a prompt score into hints the AI can use to gauge how much work is needed
 function buildScoreHints(score) {
@@ -806,9 +858,11 @@ function buildScoreHints(score) {
 function buildRefineBlock(refine) {
   const instruction = own(REFINE_INSTRUCTIONS, refine?.kind);
   if (!instruction || typeof refine.previous !== 'string' || !refine.previous.trim()) return '';
+  // A word count gives "shorter" a target models actually follow
+  const target = refine.kind === 'shorter' ? ` Use about ${Math.max(10, Math.round(countWords(refine.previous) / 2))} words or fewer.` : '';
   return '\nYou already produced this rewrite of the draft:\n' +
     `<previous_rewrite>\n${refine.previous.substring(0, HISTORY_FIELD_LIMIT)}\n</previous_rewrite>\n` +
-    `The user asked for another pass. ${instruction}\n`;
+    `The user asked for another pass. ${instruction}${target}\n`;
 }
 
 // A one-issue fix from the draft review: repair that weakness and leave the rest alone
@@ -851,13 +905,16 @@ async function buildEnhanceJob({ prompt, modifier, refine, focus, context, sessi
 
   const refineBlock = buildRefineBlock(refine);
   const undoHints = buildUndoHints(await getUndoStats(), modifier);
-  const today = `\nToday's date: ${new Date().toISOString().slice(0, 10)}\n`;
-  const fullContext = today + buildContextBlock(context, refineBlock ? null : session)
-    + analysis.hints + buildScoreHints(preScore) + deepHints + undoHints + refineBlock + buildFocusBlock(focus);
+  const today = TIME_SENSITIVE.test(prompt) ? `\nToday's date: ${new Date().toISOString().slice(0, 10)}\n` : '';
+  const related = !refineBlock && session && continuesSession(prompt, session) ? session : null;
+  // Notes on what the draft lacks push toward a longer prompt, so a "Shorter" pass leaves them out
+  const reviewHints = refineBlock && refine.kind === 'shorter' ? '' : analysis.hints + buildScoreHints(preScore);
+  const fullContext = today + buildContextBlock(context, related)
+    + reviewHints + deepHints + undoHints + refineBlock + buildFocusBlock(focus);
 
   const config = own(STYLE_CONFIG, modifier) || DEFAULT_STYLE_CONFIG;
   return {
-    job: { system: SYSTEM_PROMPT, user: fillTemplate(template, prompt, fullContext), ...config },
+    job: { system: SYSTEM_PROMPT, user: fillTemplate(template, prompt, fullContext) + FINAL_INSTRUCTION, ...config },
     preScore
   };
 }
@@ -1190,7 +1247,10 @@ const MODEL_LISTERS = {
   },
   async ollama(target) {
     const data = await fetchJson(target, `${target.endpoint}/api/tags`);
-    const models = (data.models || []).map(m => ({ id: m.name, label: m.name }));
+    // Embedding models (nomic-embed-text, bge, ...) can't write text, so they are never offered
+    const models = (data.models || [])
+      .filter(m => !/bert/i.test(m.details?.family || '') && !/embed/i.test(m.name))
+      .map(m => ({ id: m.name, label: m.name }));
     // Chrome leaves the Origin header off this GET but not off the POST a rewrite makes, and
     // Ollama refuses that unless OLLAMA_ORIGINS allows extensions. One small POST checks it.
     if (models.length > 0) await fetchJson(target, `${target.endpoint}/api/show`, {}, { model: models[0].id });
@@ -1251,7 +1311,7 @@ async function triggerEnhanceInTab(tabId, frameId = 0) {
   }
 }
 
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener(({ reason } = {}) => {
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({
       id: 'rewrite-with-promptcraft',
@@ -1259,7 +1319,17 @@ chrome.runtime.onInstalled.addListener(() => {
       contexts: ['editable']
     }, () => void chrome.runtime.lastError);
   });
+  if (reason === 'update') keepLegacyOllamaModel().catch(() => {});
 });
+
+// Version 1.0 saved no Ollama model during setup and used llama3. The default is
+// now gemma3, so anyone updating with Ollama and no saved model keeps llama3.
+async function keepLegacyOllamaModel() {
+  const saved = await chrome.storage.sync.get([STORAGE_KEYS.PROVIDER, STORAGE_KEYS.OLLAMA_MODEL]);
+  if (saved[STORAGE_KEYS.PROVIDER] === PROVIDERS.OLLAMA && !saved[STORAGE_KEYS.OLLAMA_MODEL]) {
+    await chrome.storage.sync.set({ [STORAGE_KEYS.OLLAMA_MODEL]: 'llama3' });
+  }
+}
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === 'rewrite-with-promptcraft' && tab?.id) {

@@ -226,7 +226,7 @@ function updateProviderStatus(settings) {
   let label, model, hasKey;
 
   if (isOllama) {
-    model = settings[STORAGE_KEYS.OLLAMA_MODEL] || 'llama3';
+    model = settings[STORAGE_KEYS.OLLAMA_MODEL] || DEFAULT_SETTINGS[STORAGE_KEYS.OLLAMA_MODEL];
     label = `Ollama \u00B7 ${model}`;
     hasKey = true; // Ollama doesn't need a key
   } else {
@@ -1185,12 +1185,19 @@ function finishEnhance() {
   setEnhanceButton('Improve prompt', false);
 }
 
+// A rewrite that was stopped or failed partway is not a result: clear what had streamed in
+function discardPartialOutput() {
+  els.output.textContent = '';
+  els.outputContainer.classList.remove('visible');
+}
+
 // options.focus: fix one issue from the review instead of rewriting the whole prompt
 function handleEnhance(options = {}) {
   // A second click while a request is running stops it
   if (enhancePort) {
     if (options.focus) return;
     finishEnhance();
+    discardPartialOutput();
     showToast('Stopped.', 'info');
     return;
   }
@@ -1229,7 +1236,7 @@ function handleEnhance(options = {}) {
       showEnhanceResult(msg);
     } else if (msg.type === 'error') {
       finishEnhance();
-      if (!els.output.textContent) els.outputContainer.classList.remove('visible');
+      discardPartialOutput();
       showToast(msg.error || 'The rewrite failed.', 'error');
     }
   });
@@ -1237,6 +1244,7 @@ function handleEnhance(options = {}) {
     void chrome.runtime.lastError;
     if (port !== enhancePort) return;
     finishEnhance();
+    discardPartialOutput();
     showToast('Lost the connection to PromptCraft. Try again.', 'error');
   });
 
@@ -1257,6 +1265,11 @@ function showEnhanceResult(result) {
   const post = result.postScore?.overall;
   if (typeof pre === 'number' && typeof post === 'number') {
     els.scoreBadge.textContent = `${pre} → ${post}`;
+    // A lower score usually means a weak rewrite from a small model: say so rather than show it as a result
+    els.scoreBadge.classList.toggle('down', post < pre);
+    els.scoreBadge.title = post < pre
+      ? 'This rewrite scored lower than your draft. Try again, or pick a larger model in Settings.'
+      : 'Prompt quality score, before and after (0-100)';
     els.scoreBadge.classList.remove('hidden');
   }
   if (result.truncated) showToast('The model hit its length limit, so the end may be cut off.', 'info');
@@ -2159,6 +2172,8 @@ function openTemplatesPage() {
 document.addEventListener('DOMContentLoaded', () => {
   initDomRefs();
   $('version').textContent = `PromptCraft v${chrome.runtime.getManifest().version}`;
+  // The shortcut works with Ctrl or Cmd; show the one this keyboard uses
+  if (/Mac|iPhone|iPad/.test(navigator.platform)) els.rewriteBtn.querySelector('kbd').textContent = '⌘ Enter';
   watchPageTab();
   applyTheme(themePreference);
   loadSettings();

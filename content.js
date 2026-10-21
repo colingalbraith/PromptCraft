@@ -365,6 +365,8 @@
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
     }
+    /* The rewrite scored lower than the draft */
+    .pc-delta.pc-down { background: var(--pc-mark); color: var(--pc-mark-ink); }
     .pc-blanks { display: flex; flex-direction: column; gap: 6px; }
     .pc-blank { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--pc-ink-soft); }
     .pc-blank input {
@@ -1730,8 +1732,11 @@
     const head = el('div', 'pc-head');
     head.appendChild(el('div', 'pc-title', 'Suggested rewrite'));
     if (typeof pre === 'number' && typeof post === 'number') {
-      const delta = el('span', 'pc-delta', `${pre} → ${post}`);
-      delta.title = 'Prompt quality score, before and after (0-100)';
+      const delta = el('span', post < pre ? 'pc-delta pc-down' : 'pc-delta', `${pre} → ${post}`);
+      // A lower score usually means a weak rewrite from a small model: say so rather than show it as a result
+      delta.title = post < pre
+        ? 'This rewrite scored lower than your draft. Try again, or pick a larger model in Settings.'
+        : 'Prompt quality score, before and after (0-100)';
       head.appendChild(delta);
     }
     head.appendChild(closeButton());

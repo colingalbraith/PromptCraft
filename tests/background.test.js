@@ -155,6 +155,28 @@ test('quotes and tags that belong to the rewrite are kept', async () => {
   }
 });
 
+test('a small model that repeats its instructions still yields just the prompt', async () => {
+  // What qwen3:0.6b returns for "explain kubernetes": the template's first line, a label, then its guidelines
+  const echoed = 'Enhance this prompt to be maximally effective while staying concise:\n\n**Prompt:**\n' +
+    'What is Kubernetes, and what are the key components a beginner should understand?\n\n' +
+    '**Constraints:**\n- Front-load the core instruction.\n- Replace vague terms with specific language.';
+  const port = openaiWorker(echoed).connect();
+  const done = await port.enhance({ prompt: 'explain kubernetes' });
+  assert.equal(done.text, 'What is Kubernetes, and what are the key components a beginner should understand?');
+  assert.ok(port.streamed().startsWith('What is Kubernetes'), 'the repeated instruction never streams');
+
+  // A rewrite that merely has a list like the guidelines is left alone
+  const { cleanEnhancedText } = loadWorker().sandbox;
+  const genuine = 'Write a launch email.\n\nRequirements:\n- Front-load the core instruction in the subject line';
+  assert.equal(cleanEnhancedText(genuine), genuine);
+});
+
+test('every rewrite request ends by asking for the prompt alone', async () => {
+  const worker = openaiWorker('ok then');
+  await worker.connect().enhance({ prompt: 'explain kubernetes' });
+  assert.match(worker.calls[0].body.input, /<\/draft_prompt>\n\nNow write the rewritten prompt\. Reply with the prompt alone/);
+});
+
 test('a leading <think> block never reaches the page, even split across chunks', async () => {
   const worker = loadWorker({
     sync: { provider: 'ollama', ollamaModel: 'qwen3:8b' },
@@ -360,6 +382,32 @@ test('Ollama 403 explains the OLLAMA_ORIGINS fix', async () => {
   assert.match(result.error, /OLLAMA_ORIGINS=chrome-extension:\/\/\*/);
 });
 
+test('Ollama embedding models are never offered as a rewrite model', async () => {
+  const worker = loadWorker({
+    fetch: (call) => jsonResponse(call.method === 'POST' ? {} : { models: [
+      { name: 'nomic-embed-text:latest', details: { family: 'nomic-bert' } },
+      { name: 'mxbai-embed-large:latest', details: { family: 'bert' } },
+      { name: 'gemma3:4b', details: { family: 'gemma3' } }
+    ] })
+  });
+  const resp = await worker.send({ action: 'getOllamaModels', settings: { ollamaEndpoint: 'http://localhost:11434' } });
+  assert.deepEqual(plain(resp.models), ['gemma3:4b']);
+  assert.deepEqual(worker.calls[1].body, { model: 'gemma3:4b' }, 'the connection check uses a model that can write');
+});
+
+test('updating from 1.0 keeps llama3 for Ollama users who never picked a model', async () => {
+  const update = async (sync, reason = 'update') => {
+    const worker = loadWorker({ sync });
+    worker.events.onInstalled.listeners.forEach(fn => fn({ reason }));
+    await new Promise(r => setTimeout(r, 20));
+    return worker.storage.sync.data.ollamaModel;
+  };
+  assert.equal(await update({ provider: 'ollama' }), 'llama3');
+  assert.equal(await update({ provider: 'ollama', ollamaModel: 'qwen3:8b' }), 'qwen3:8b');
+  assert.equal(await update({ provider: 'api' }), undefined);
+  assert.equal(await update({ provider: 'ollama' }, 'install'), undefined, 'new installs get the current default');
+});
+
 test('Ollama is only reported as connected when it accepts the requests a rewrite makes', async () => {
   // Chrome omits the Origin header on the model-list GET, so Ollama answers it even
   // when it would refuse every rewrite (a POST) for coming from an extension
@@ -471,6 +519,18 @@ test('a refine request sends the previous rewrite and the instruction', async ()
   assert.match(sent, /<draft_prompt>\nhelp with my essay\n<\/draft_prompt>/);
 });
 
+test('"Shorter" gives a word target and leaves out the notes that ask for more', async () => {
+  const worker = openaiWorker('Shorter prompt.');
+  const previous = Array.from({ length: 80 }, (_, i) => `word${i}`).join(' ');
+  await worker.connect().enhance({ prompt: 'help with my essay', refine: { kind: 'shorter', previous } });
+  await worker.connect().enhance({ prompt: 'help with my essay', refine: { kind: 'longer', previous } });
+  const [shorter, longer] = worker.calls.map(c => c.body.input);
+  assert.match(shorter, /Use about 40 words or fewer\./);
+  assert.doesNotMatch(shorter, /Input Analysis|Prompt Score Analysis/);
+  assert.match(longer, /Input Analysis/);
+  assert.doesNotMatch(longer, /words or fewer/);
+});
+
 test('a one-issue fix asks for that fix only, and unknown issues are ignored', async () => {
   const worker = openaiWorker('Write 300 words about [dog breed].');
   await worker.connect().enhance({ prompt: 'write something about dogs', focus: 'specificity' });
@@ -505,8 +565,26 @@ test('follow-up enhancements in a tab see the previous one', async () => {
   const worker = openaiWorker('First rewrite.');
   await worker.connect().enhance({ prompt: 'first draft' });
   await worker.connect().enhance({ prompt: 'second draft' });
-  assert.doesNotMatch(worker.calls[0].body.input, /Previous enhancement in this session/);
-  assert.match(worker.calls[1].body.input, /Previous enhancement in this session[\s\S]*Original: "first draft"/);
+  assert.doesNotMatch(worker.calls[0].body.input, /Earlier in this tab/);
+  assert.match(worker.calls[1].body.input, /Earlier in this tab you rewrote a related draft[\s\S]*Draft: "first draft"/);
+});
+
+test('an unrelated draft is rewritten on its own, without the previous one', async () => {
+  // Small models given an unrelated earlier rewrite tend to rewrite that one instead
+  const worker = openaiWorker('Build a landing page for a bakery.');
+  await worker.connect().enhance({ prompt: 'make a website for my bakery' });
+  await worker.connect().enhance({ prompt: 'help me fix my code it doesnt work' });
+  await worker.connect().enhance({ prompt: 'now the same for my coffee shop' });
+  assert.doesNotMatch(worker.calls[1].body.input, /Earlier in this tab/);
+  assert.match(worker.calls[2].body.input, /Earlier in this tab/, 'a draft that refers back keeps the context');
+});
+
+test('the date is given only to time-sensitive drafts', async () => {
+  const worker = openaiWorker('ok then');
+  await worker.connect().enhance({ prompt: 'what should i eat to lose weight' });
+  await worker.connect().enhance({ prompt: 'summarize the latest news about fusion power' });
+  assert.doesNotMatch(worker.calls[0].body.input, /Today's date/);
+  assert.match(worker.calls[1].body.input, /Today's date: \d{4}-\d{2}-\d{2}/);
 });
 
 // ── Message router ──────────────────────────────────────────────────────────
@@ -653,11 +731,11 @@ test('the side panel can name the tab it is working on; a page cannot', async ()
   // Panel: enhancement is tied to tab 42, so the follow-up sees it
   await worker.connect(SENDERS.popup).enhance({ prompt: 'first draft', tabId: 42 });
   await worker.connect(SENDERS.popup).enhance({ prompt: 'second draft', tabId: 42 });
-  assert.match(worker.calls[1].body.input, /Previous enhancement in this session[\s\S]*Original: "first draft"/);
+  assert.match(worker.calls[1].body.input, /Earlier in this tab[\s\S]*Draft: "first draft"/);
 
   // A content script claiming tab 42 is still treated as its own tab (7)
   await worker.connect(SENDERS.page).enhance({ prompt: 'third draft', tabId: 42 });
-  assert.doesNotMatch(worker.calls[2].body.input, /Previous enhancement in this session/);
+  assert.doesNotMatch(worker.calls[2].body.input, /Earlier in this tab/);
 });
 
 test('a draft is reviewed locally, with no network request', async () => {
@@ -683,6 +761,18 @@ test('a draft is reviewed locally, with no network request', async () => {
 
   assert.deepEqual(plain(await worker.send({ action: 'analyzeDraft', text: '   ' }, SENDERS.page)), { success: true, score: null, issues: [] });
   assert.equal(worker.calls.length, 0);
+});
+
+test('a clear one-paragraph rewrite is not marked down as a wall of text', () => {
+  // A top-level const in the worker, so it is read from the sandbox's scope
+  const InputParser = require('vm').runInContext('InputParser', loadWorker().sandbox);
+  const draft = 'write an email to my landlord about the broken heater, its been 2 weeks';
+  const rewrite = 'Compose a formal email to my landlord about the heater in my apartment, which has been broken for two weeks. ' +
+    'Describe the problem and the dates I reported it, explain how the cold is affecting daily life, and request a repair within five business days. ' +
+    'Keep a polite but firm tone, stay under 200 words, and end by asking for written confirmation of the repair date.';
+  const after = InputParser.scorePrompt(rewrite);
+  assert.ok(after.breakdown.structure >= 40, `structure ${after.breakdown.structure}`);
+  assert.ok(after.overall > InputParser.scorePrompt(draft).overall);
 });
 
 test('a page can ask for the side panel to be opened beside its own tab', async () => {

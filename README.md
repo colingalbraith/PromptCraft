@@ -77,7 +77,7 @@ It works on ChatGPT, Claude, Gemini, DeepSeek, Perplexity, Grok, HuggingFace and
 
 ## Install
 
-1. Download `promptcraft-1.1.0.zip` from the [latest release](https://github.com/colingalbraith/PromptCraft/releases/latest) and unzip it.
+1. Download the `promptcraft-<version>.zip` file from the [latest release](https://github.com/colingalbraith/PromptCraft/releases/latest) and unzip it.
 2. Open `chrome://extensions`, turn on **Developer mode** (top right) and click **Load unpacked**.
 3. Select the unzipped folder.
 4. Click the PromptCraft icon in the toolbar. It opens in the side panel, where a short setup asks which model to use.

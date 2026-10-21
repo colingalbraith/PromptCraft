@@ -185,6 +185,7 @@ Guidelines:
 - Make implicit requirements explicit in minimal words
 - Add only the constraints that materially improve output quality
 - If the prompt is already strong, make surgical improvements rather than rewriting entirely
+- Keep it brief: one to three sentences, or a short list when the request has several parts. Stay under about 60 words unless the draft itself is longer
 {{context}}
 Prompt to enhance:
 {{input}}`,
@@ -305,7 +306,7 @@ const DEFAULT_SETTINGS = {
   [STORAGE_KEYS.CUSTOM_MODEL]: '',
   [STORAGE_KEYS.CUSTOM_ENDPOINT]: '',
   [STORAGE_KEYS.OLLAMA_ENDPOINT]: 'http://localhost:11434',
-  [STORAGE_KEYS.OLLAMA_MODEL]: 'llama3',
+  [STORAGE_KEYS.OLLAMA_MODEL]: 'gemma3',
   [STORAGE_KEYS.LAST_MODIFIER]: 'short',
   [STORAGE_KEYS.DEEP_ANALYSIS]: false,
   [STORAGE_KEYS.MULTI_STEP]: false,
