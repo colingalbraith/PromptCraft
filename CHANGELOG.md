@@ -22,7 +22,10 @@
 - Test suite (`node --test`) and a store packaging script (`node scripts/package.js`).
 
 ### Changed
-- Model defaults and lists updated to current OpenAI, Gemini and Claude models. Saved Gemini 1.5 / 2.0 selections are moved to a current model.
+- Model defaults and lists updated to current OpenAI, Gemini and Claude models, including Claude Haiku 5.5. Saved Gemini 1.5 / 2.0 selections are moved to a current model.
+- Choosing Ollama during onboarding selects a model that is already installed, and the setup steps include allowing browser extensions (`OLLAMA_ORIGINS`).
+- *Clear* in History asks for a second click, like *Reset Stats*.
+- The logo is a 256 px image, so the store package is about 240 KB instead of 1.5 MB.
 - OpenAI requests use the Responses API. Claude requests no longer send sampling parameters, which current models reject.
 - Usage statistics use the token counts the provider reports, and include models without a known price.
 - History stores full prompts (previously cut at 500 / 800 characters).
@@ -44,6 +47,13 @@
 - Undo was never recorded, so the undo-rate hint never applied.
 - Ordinary words such as "from", "class" and "public" marked a prompt as code.
 - Line breaks were lost when reading a prompt from rich-text chat boxes.
+- The side panel stayed on "Loading..." (no onboarding, tones or settings) in browsers where the built-in model never answers whether it is available. The check now gives up after a few seconds and the panel no longer waits for it.
+- *Open panel* in the in-page card did nothing: the click's user gesture was lost before the side panel was asked to open.
+- Settings reported "Connected" to an Ollama that refuses browser extensions, so every rewrite then failed. The connection check now makes the same kind of request a rewrite does.
+- Small models that echoed the `<draft_prompt>` tags, or wrapped the rewrite in quotes, had those written into the text box.
+- `$$`, `$&` and `{{input}}` typed into a template's fields were altered when the template was filled in.
+- History tooltips cut off a prompt at its first double quote.
+- A long word with no spaces (such as a pasted key or minified code) made the live review take half a second per pause in typing.
 
 ### Security and privacy
 - API keys stay in the service worker. Content scripts are refused settings and history and cannot read extension storage.

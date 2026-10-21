@@ -205,8 +205,9 @@ Your Input
 
 | Problem | Fix |
 |---|---|
-| **Ollama refused the request (403)** | Older Ollama versions block browser extensions. Set `OLLAMA_ORIGINS=chrome-extension://*` and restart Ollama |
+| **Ollama refused the request (403)** | Ollama only accepts requests from browser extensions when allowed to. Set `OLLAMA_ORIGINS=chrome-extension://*` and restart Ollama. Onboarding and Settings check this when they connect |
 | **Model not found** | Open Settings and press **↻** next to the model picker to load the provider's current models |
+| **"Built-in model is not responding"** | Chrome hasn't made its on-device model available (it may still be setting it up, or it is turned off by policy). Try again later or pick another provider |
 | **Custom endpoint can't be reached** | Chrome asks for access to that host when you save or test it — allow it. Local servers may also need CORS enabled |
 | **`Ctrl+Shift+E` does nothing** | Another extension or the browser owns the shortcut. Rebind it at `chrome://extensions/shortcuts` |
 | **"PromptCraft was updated. Reload this page"** | The extension was reloaded while the tab was open. Refresh the tab |
