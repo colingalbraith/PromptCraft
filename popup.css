@@ -358,6 +358,12 @@ h1:focus, h2:focus {
   color: var(--pen);
 }
 
+/* Waiting for the second click of a destructive action */
+.text-btn.confirming {
+  color: var(--error);
+  font-weight: 600;
+}
+
 /* A row that leads to another page */
 .link-row {
   display: flex;

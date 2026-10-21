@@ -1488,19 +1488,26 @@ function handleExportHistory() {
   showToast('History exported!', 'success');
 }
 
-async function handleClearHistory() {
-  await sendMsg({ action: 'clearHistory' });
-  historyData = [];
-  historyVisibleCount = HISTORY_PAGE_SIZE;
-  showToast('History cleared', 'info');
-  renderHistory([]);
-  if (els.historySearch) els.historySearch.value = '';
+function handleClearHistory() {
+  if (historyData.length === 0) {
+    showToast('History is already empty.', 'info');
+    return;
+  }
+  confirmThen(els.clearHistoryBtn, 'Click again to clear', async () => {
+    await sendMsg({ action: 'clearHistory' });
+    historyData = [];
+    historyVisibleCount = HISTORY_PAGE_SIZE;
+    showToast('History cleared', 'info');
+    renderHistory([]);
+    if (els.historySearch) els.historySearch.value = '';
+  });
 }
 
+const HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+
+// Safe in element content and in quoted attribute values alike
 function escapeHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
+  return String(str ?? '').replace(/[&<>"']/g, ch => HTML_ESCAPES[ch]);
 }
 
 // ── Style Chips ────────────────────────────────────────────────────────────
@@ -1926,30 +1933,34 @@ async function loadScoringStats() {
   }
 }
 
-let resetConfirmTimeout = null;
+const confirmTimers = new WeakMap();
+
+// Destructive buttons act only on a second click within three seconds
+function confirmThen(btn, prompt, action) {
+  if (btn.classList.contains('confirming')) {
+    clearTimeout(confirmTimers.get(btn));
+    btn.classList.remove('confirming');
+    btn.textContent = btn.dataset.label;
+    action();
+    return;
+  }
+  btn.dataset.label = btn.textContent;
+  btn.classList.add('confirming');
+  btn.textContent = prompt;
+  confirmTimers.set(btn, setTimeout(() => {
+    btn.classList.remove('confirming');
+    btn.textContent = btn.dataset.label;
+  }, 3000));
+}
 
 function handleResetUsage() {
-  const btn = els.resetUsageBtn;
-  if (btn.classList.contains('confirming')) {
-    // Second click — do the reset
-    clearTimeout(resetConfirmTimeout);
-    btn.classList.remove('confirming');
-    btn.textContent = 'Reset Stats';
-
+  confirmThen(els.resetUsageBtn, 'Click again to confirm reset', () => {
     sendMsg({ action: 'resetUsageStats' }).then(() => {
       showToast('Usage stats reset.', 'info');
       loadUsagePage();
       loadUsageIndicator();
     });
-  } else {
-    // First click — ask for confirmation
-    btn.classList.add('confirming');
-    btn.textContent = 'Click again to confirm reset';
-    resetConfirmTimeout = setTimeout(() => {
-      btn.classList.remove('confirming');
-      btn.textContent = 'Reset Stats';
-    }, 3000);
-  }
+  });
 }
 
 // ── Templates ───────────────────────────────────────────────────────────────
