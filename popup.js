@@ -1185,12 +1185,19 @@ function finishEnhance() {
   setEnhanceButton('Improve prompt', false);
 }
 
+// A rewrite that was stopped or failed partway is not a result: clear what had streamed in
+function discardPartialOutput() {
+  els.output.textContent = '';
+  els.outputContainer.classList.remove('visible');
+}
+
 // options.focus: fix one issue from the review instead of rewriting the whole prompt
 function handleEnhance(options = {}) {
   // A second click while a request is running stops it
   if (enhancePort) {
     if (options.focus) return;
     finishEnhance();
+    discardPartialOutput();
     showToast('Stopped.', 'info');
     return;
   }
@@ -1229,7 +1236,7 @@ function handleEnhance(options = {}) {
       showEnhanceResult(msg);
     } else if (msg.type === 'error') {
       finishEnhance();
-      if (!els.output.textContent) els.outputContainer.classList.remove('visible');
+      discardPartialOutput();
       showToast(msg.error || 'The rewrite failed.', 'error');
     }
   });
@@ -1237,6 +1244,7 @@ function handleEnhance(options = {}) {
     void chrome.runtime.lastError;
     if (port !== enhancePort) return;
     finishEnhance();
+    discardPartialOutput();
     showToast('Lost the connection to PromptCraft. Try again.', 'error');
   });
 
@@ -2164,6 +2172,8 @@ function openTemplatesPage() {
 document.addEventListener('DOMContentLoaded', () => {
   initDomRefs();
   $('version').textContent = `PromptCraft v${chrome.runtime.getManifest().version}`;
+  // The shortcut works with Ctrl or Cmd; show the one this keyboard uses
+  if (/Mac|iPhone|iPad/.test(navigator.platform)) els.rewriteBtn.querySelector('kbd').textContent = '⌘ Enter';
   watchPageTab();
   applyTheme(themePreference);
   loadSettings();
