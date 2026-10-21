@@ -4,8 +4,8 @@
 
 The landing page for [PromptCraft](https://github.com/colingalbraith/PromptCraft) — a free, open-source Chrome extension for one-click prompt enhancement.
 
-[![Live Site](https://img.shields.io/badge/Live-getpromptcraft.vercel.app-orange)](https://getpromptcraft.vercel.app)
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black)](https://vercel.com)
+[![Live Site](https://img.shields.io/badge/Live-colingalbraith.github.io%2FPromptCraft-orange)](https://colingalbraith.github.io/PromptCraft/)
+[![Deployed on GitHub Pages](https://img.shields.io/badge/Deployed%20on-GitHub%20Pages-black)](https://docs.github.com/pages)
 
 </div>
 
@@ -27,7 +27,7 @@ The landing page for [PromptCraft](https://github.com/colingalbraith/PromptCraft
 
 Static landing page showcasing PromptCraft's features, demo video, and installation guide. Built with vanilla HTML/CSS/JS — no frameworks, no build step.
 
-**Live at:** [getpromptcraft.vercel.app](https://getpromptcraft.vercel.app)
+**Live at:** [colingalbraith.github.io/PromptCraft](https://colingalbraith.github.io/PromptCraft/)
 
 ---
 
@@ -50,7 +50,7 @@ website/
 ├── index.html           # Main landing page
 ├── privacy.html         # Privacy policy
 ├── og-card.html         # OG image template (screenshot at 1200x630)
-├── vercel.json          # Vercel deployment config
+├── .nojekyll           # Tells GitHub Pages to serve the files as they are
 ├── package.json         # Dev dependencies (live-server, linting)
 ├── css/
 │   └── styles.css       # All styles (~1600 lines, single file)
@@ -92,17 +92,9 @@ No build step needed — edit files and the browser auto-reloads.
 
 ## Deployment
 
-The site is deployed on Vercel. Any push to the `website` branch triggers a redeploy.
+The site is served by GitHub Pages from the root of the `website` branch (Settings → Pages → Deploy from a branch). Every merge into `website` is live about a minute later; there is nothing to build or upload.
 
-**Manual deploy:**
-```bash
-vercel --prod
-```
-
-**Custom alias:**
-```bash
-vercel alias set <deployment-url> getpromptcraft.vercel.app
-```
+It is served under `/PromptCraft/`, so links between pages are relative (`privacy.html`, not `/privacy.html`).
 
 ---
 
@@ -110,9 +102,9 @@ vercel alias set <deployment-url> getpromptcraft.vercel.app
 
 | Page | Path | Description |
 |---|---|---|
-| Landing | `/` | Hero, features, demo video, how it works, CTA |
-| Privacy | `/privacy.html` | Privacy policy for Chrome Web Store compliance |
-| OG Card | `/og-card.html` | Template for social sharing preview image |
+| Landing | `/PromptCraft/` | Hero, features, demo video, how it works, CTA |
+| Privacy | `/PromptCraft/privacy.html` | Privacy policy for Chrome Web Store compliance |
+| OG Card | `/PromptCraft/og-card.html` | Template for social sharing preview image |
 
 ---
 
