@@ -249,7 +249,7 @@ async function* readSSE(body, onChunk) {
 // Output-token room for models that reason before they answer
 const REASONING_HEADROOM = 4000;
 const CLAUDE_MAX_TOKENS = 16000;
-const CLAUDE_EFFORT_MODELS = /^claude-(fable|mythos|opus-(5|4-[5-8])|sonnet-(5|4-6))/;
+const CLAUDE_EFFORT_MODELS = /^claude-(fable|mythos|opus-(5|4-[5-8])|sonnet-(5|4-6)|haiku-5)/;
 const CLAUDE_FALLBACK_MODELS = /^claude-(fable-5-1|opus-5|sonnet-5-5)/;
 
 const PROVIDER_ADAPTERS = {

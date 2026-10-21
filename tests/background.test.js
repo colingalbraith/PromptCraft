@@ -255,6 +255,19 @@ test('Claude Haiku 4.5 gets neither effort nor fallbacks', async () => {
   assert.equal(call.headers['anthropic-beta'], undefined);
 });
 
+test('Claude Haiku 5.5 gets low effort but no fallbacks, which it does not offer', async () => {
+  const worker = loadWorker({
+    sync: { apiProvider: 'claude', claudeModel: 'claude-haiku-5-5' },
+    local: { claudeApiKey: 'sk-ant-test' },
+    fetch: () => streamResponse(sse([{ type: 'content_block_delta', delta: { type: 'text_delta', text: 'ok then' } }]))
+  });
+  await worker.connect().enhance({ prompt: 'hi there' });
+  const [call] = worker.calls;
+  assert.deepEqual(plain(call.body.output_config), { effort: 'low' });
+  assert.equal(call.body.fallbacks, undefined);
+  assert.equal(call.headers['anthropic-beta'], undefined);
+});
+
 test('Claude: a refusal is reported instead of inserted as the prompt', async () => {
   const worker = loadWorker({
     sync: { apiProvider: 'claude' },

@@ -332,7 +332,7 @@ const API_MODELS = {
   claude: [
     { id: 'claude-opus-5-5', label: 'Claude Opus 5.5' },
     { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5' },
-    { id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5' },
+    { id: 'claude-haiku-5-5', label: 'Claude Haiku 5.5' },
     { id: 'claude-fable-5-1', label: 'Claude Fable 5.1' }
   ],
   custom: []
@@ -571,6 +571,8 @@ const TOKEN_COSTS = {
   'gemini-3-flash-preview': { input: 0.50, output: 3.00 },
   'claude-opus-5-5':   { input: 4.00, output: 20.00 },
   'claude-sonnet-5-5': { input: 2.00, output: 10.00 },
+  // Haiku 5.5 rises to 0.50 / 2.50 past 100K input tokens; a rewrite stays far below that
+  'claude-haiku-5-5':  { input: 0.10, output: 0.50 },
   'claude-haiku-4-5':  { input: 1.00, output: 5.00 },
   'claude-haiku-4-5-20251001': { input: 1.00, output: 5.00 },
   'claude-fable-5-1':  { input: 10.00, output: 50.00 },

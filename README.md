@@ -92,7 +92,7 @@ Write like a human. Get expert-level prompts. Every time.
 |---|---|---|
 | **OpenAI** | Cloud API | GPT-6 Luna, GPT-6.1 Sol, GPT-6 Astra |
 | **Google Gemini** | Cloud API | Gemini 3.5 Flash-Lite, 3.8 Flash, 3.1 Flash-Lite, 3.1 Pro |
-| **Anthropic Claude** | Cloud API | Claude Opus 5.5, Sonnet 5.5, Haiku 4.5, Fable 5.1 |
+| **Anthropic Claude** | Cloud API | Claude Opus 5.5, Sonnet 5.5, Haiku 5.5, Fable 5.1 |
 | **Built-in** | On-device | The model built into your browser (Gemini Nano in Chrome). Free, no key. Offered only where the browser can run it |
 | **Ollama** | Local | Any installed model (free) |
 | **Custom** | Any | OpenAI-compatible APIs — Groq, Together, OpenRouter, LM Studio, vLLM |
