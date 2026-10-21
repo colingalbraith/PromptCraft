@@ -11,7 +11,7 @@
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/colingalbraith/PromptCraft?style=social)](https://github.com/colingalbraith/PromptCraft)
 
-[Download](https://github.com/colingalbraith/PromptCraft/releases/latest) · [Website](https://getpromptcraft.vercel.app) · [Report a bug](https://github.com/colingalbraith/PromptCraft/issues) · [Contributing](CONTRIBUTING.md)
+[Download](https://github.com/colingalbraith/PromptCraft/releases/latest) · [Website](https://colingalbraith.github.io/PromptCraft/) · [Report a bug](https://github.com/colingalbraith/PromptCraft/issues) · [Contributing](CONTRIBUTING.md)
 
 </div>
 
@@ -155,7 +155,7 @@ Outside the supported chat sites nothing is added to a page until you ask: click
 - **Only what a rewrite needs is sent**: your draft and, when context is on, recent messages from the page, straight to your provider. With the built-in model or a local Ollama nothing leaves your computer.
 - **Runs only where needed**: on the supported chat sites, and elsewhere only after you invoke it.
 
-Read the full [privacy policy](https://getpromptcraft.vercel.app/privacy.html).
+Read the full [privacy policy](https://colingalbraith.github.io/PromptCraft/privacy.html).
 
 ---
 
