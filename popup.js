@@ -2067,71 +2067,49 @@ function closeTemplateDetail() {
   activeTemplate = null;
 }
 
+// A template as literal text and {{name}} placeholders. Filling it part by part
+// means typed values are inserted as written: "$&" or "{{input}}" in pasted
+// code is never read as a pattern or another placeholder.
+function templateParts(template) {
+  return template.split(/(\{\{\w+\}\})/).filter(Boolean).map((part) => {
+    const name = part.match(/^\{\{(\w+)\}\}$/)?.[1];
+    return name ? { name } : { text: part };
+  });
+}
+
+// What has been typed for each placeholder: the named fields plus the content box
+function templateValues() {
+  const values = {};
+  els.templateVariables.querySelectorAll('input[data-variable]').forEach((field) => {
+    values[field.dataset.variable] = field.value.trim();
+  });
+  values.input = els.templateInputArea.value.trim();
+  return values;
+}
+
 function updateTemplatePreview() {
   if (!activeTemplate) return;
-  let text = activeTemplate.template;
-
-  // Replace named variables
-  const varFields = els.templateVariables.querySelectorAll('input[data-variable]');
-  varFields.forEach((field) => {
-    const varName = field.dataset.variable;
-    const value = field.value.trim();
-    const pattern = new RegExp('\\{\\{' + varName + '\\}\\}', 'g');
-    if (value) {
-      text = text.replace(pattern, value);
-    }
-  });
-
-  // Replace {{input}} with content area value
-  const inputVal = els.templateInputArea.value.trim();
-  if (inputVal) {
-    text = text.replace(/\{\{input\}\}/g, inputVal);
-  }
-
-  // Build highlighted HTML for preview
-  // Highlight filled variables and mark unfilled ones
-  let html = escapeHtml(text);
-  // Mark remaining unfilled {{...}} placeholders
-  html = html.replace(/\{\{(\w+)\}\}/g, '<span class="tpl-unfilled">{{$1}}</span>');
-
-  els.templatePreviewText.innerHTML = html;
+  const values = templateValues();
+  // Placeholders still to fill are highlighted
+  els.templatePreviewText.replaceChildren(...templateParts(activeTemplate.template).map((part) => {
+    if (!part.name) return part.text;
+    if (values[part.name]) return values[part.name];
+    const blank = document.createElement('span');
+    blank.className = 'tpl-unfilled';
+    blank.textContent = `{{${part.name}}}`;
+    return blank;
+  }));
 }
 
 function handleUseTemplate() {
   if (!activeTemplate) return;
-  let text = activeTemplate.template;
-
-  // Replace named variables
-  const varFields = els.templateVariables.querySelectorAll('input[data-variable]');
-  let allFilled = true;
-  varFields.forEach((field) => {
-    const varName = field.dataset.variable;
-    const value = field.value.trim();
-    const pattern = new RegExp('\\{\\{' + varName + '\\}\\}', 'g');
-    if (value) {
-      text = text.replace(pattern, value);
-    } else {
-      allFilled = false;
-    }
-  });
-
-  // Replace {{input}}
-  const inputVal = els.templateInputArea.value.trim();
-  const needsInput = activeTemplate.template.includes('{{input}}');
-  if (needsInput && inputVal) {
-    text = text.replace(/\{\{input\}\}/g, inputVal);
-  } else if (needsInput && !inputVal) {
-    allFilled = false;
+  const values = templateValues();
+  const parts = templateParts(activeTemplate.template);
+  if (parts.some(part => part.name && !values[part.name])) {
+    showToast('Please fill in all fields before using the template.', 'error');
+    return;
   }
-
-  if (!allFilled) {
-    // Check which fields still have unfilled placeholders
-    const remaining = text.match(/\{\{(\w+)\}\}/g);
-    if (remaining && remaining.length > 0) {
-      showToast('Please fill in all fields before using the template.', 'error');
-      return;
-    }
-  }
+  const text = parts.map(part => (part.name ? values[part.name] : part.text)).join('');
 
   // Set the selected tone from the template detail view
   const activeToneChip = els.templateToneChips.querySelector('.style-chip.active');
