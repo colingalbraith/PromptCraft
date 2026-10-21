@@ -185,6 +185,7 @@ Guidelines:
 - Make implicit requirements explicit in minimal words
 - Add only the constraints that materially improve output quality
 - If the prompt is already strong, make surgical improvements rather than rewriting entirely
+- Keep it brief: one to three sentences, or a short list when the request has several parts. Stay under about 60 words unless the draft itself is longer
 {{context}}
 Prompt to enhance:
 {{input}}`,
