@@ -59,13 +59,13 @@ website/
 └── assets/
     ├── demo.mp4         # Extension demo video (hero)
     ├── demo-poster.jpg  # First frame, shown until the video plays
+    ├── demo-mobile.mp4  # The same recording cropped around the card, for phones
+    ├── demo-mobile-poster.jpg
     ├── og-image.png     # Social sharing image, rendered from og-card.html
     ├── screens/         # Screenshots for "See it in action" (WebP)
     ├── logo.png         # PromptCraft logo (256px)
     ├── icon128.png      # Logo 128px
-    ├── icon48.png       # Logo 48px (favicon)
-    ├── gemini.png       # Gemini provider logo
-    └── ollama.png       # Ollama provider logo
+    └── icon48.png       # Logo 48px (favicon)
 ```
 
 ---
@@ -112,10 +112,12 @@ It is served under `/PromptCraft/`, so links between pages are relative (`privac
 
 ### Landing Page (`index.html`)
 
-- **Splash screen** — animated logo, progress bar, rotating tips
 - **Hero** — headline with word-by-word reveal, demo video, CTA buttons
-- **Stats bar** — writing styles, free forever, supported providers
+- **Stats bar** — live review, free, supported providers
 - **Features** — 6 cards in 3x2 grid with scroll reveal animations
+- **Screenshots** — review, suggestion, dark theme
+- **Install** — the four steps to load the release in Chrome
+- **FAQ** — cost, privacy, models, offline use, supported sites
 - **CTA** — 3-step how it works + GitHub link
 - **Footer** — links, logo, copyright
 

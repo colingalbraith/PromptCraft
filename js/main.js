@@ -2,53 +2,43 @@
  * PromptCraft Website
  */
 
-// ── Splash screen ──
-const Splash = {
+// ── Hero: animate the headline and start the demo as soon as the page loads ──
+const Hero = {
     init() {
-        const splash = document.getElementById('splash');
-        if (!splash) return;
+        const content = document.querySelector('.hero-content');
+        if (content) requestAnimationFrame(() => content.classList.add('hero-animate'));
 
-        // Start rotating tips in random order
-        const tips = Array.from(document.querySelectorAll('.splash-tip'));
-        if (tips.length > 1) {
-            // Shuffle into random order
-            const order = tips.map((_, i) => i);
-            for (let i = order.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [order[i], order[j]] = [order[j], order[i]];
-            }
-            // Start with first random tip
-            tips.forEach(t => t.classList.remove('active'));
-            let pos = 0;
-            tips[order[pos]].classList.add('active');
-
-            setInterval(() => {
-                tips[order[pos]].classList.remove('active');
-                pos = (pos + 1) % order.length;
-                tips[order[pos]].classList.add('active');
-            }, 2000);
+        const video = document.getElementById('heroVideo');
+        if (!video) return;
+        // On phones the full recording is too small to read: use the crop around the card
+        if (video.dataset.mobileSrc && window.matchMedia('(max-width: 768px)').matches) {
+            video.poster = video.dataset.mobilePoster || video.poster;
+            video.src = video.dataset.mobileSrc;
         }
+        // A click plays or pauses; with reduced motion it doesn't start on its own
+        video.addEventListener('click', () => (video.paused ? video.play() : video.pause()));
+        if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) video.play().catch(() => {});
+    }
+};
 
-        // Wait for loading bar animation to finish, then fade out
-        setTimeout(() => {
-            splash.classList.add('hidden');
-            document.body.classList.remove('loading');
-
-            // Trigger hero animations after splash is gone
-            setTimeout(() => {
-                const heroContent = document.querySelector('.hero-content');
-                if (heroContent) heroContent.classList.add('hero-animate');
-
-                // Start video after hero text begins
-                const heroVideo = document.getElementById('heroVideo');
-                if (heroVideo) setTimeout(() => heroVideo.play(), 1000);
-            }, 400);
-        }, 3200);
-
-        // Remove from DOM after transition
-        setTimeout(() => {
-            if (splash.parentNode) splash.parentNode.removeChild(splash);
-        }, 4000);
+// ── Copy buttons (chrome:// addresses can't be links) ──
+const CopyButtons = {
+    init() {
+        document.querySelectorAll('[data-copy]').forEach(btn => {
+            const label = btn.textContent;
+            btn.addEventListener('click', async () => {
+                try {
+                    await navigator.clipboard.writeText(btn.dataset.copy);
+                    btn.textContent = 'Copied';
+                } catch {
+                    // Clipboard refused: select the text so a key press copies it
+                    const code = btn.parentElement.querySelector('code');
+                    if (code) window.getSelection().selectAllChildren(code);
+                    btn.textContent = /Mac|iPhone|iPad/.test(navigator.platform) ? 'Press ⌘C' : 'Press Ctrl+C';
+                }
+                setTimeout(() => { btn.textContent = label; }, 2500);
+            });
+        });
     }
 };
 
@@ -293,7 +283,8 @@ const Particles = {
 
 // ── Init ──
 document.addEventListener('DOMContentLoaded', () => {
-    Splash.init();
+    Hero.init();
+    CopyButtons.init();
     Header.init();
     MobileNav.init();
     SmoothScroll.init();
@@ -301,5 +292,4 @@ document.addEventListener('DOMContentLoaded', () => {
     Demo.init();
     Particles.init();
 
-    // Video play is triggered after splash finishes (handled in Splash.init)
 });
