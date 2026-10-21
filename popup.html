@@ -159,11 +159,11 @@
             <div id="api-key-status" class="connection-status" role="status"></div>
           </div>
           <div class="input-group compact">
-            <label for="custom-model">Model</label>
+            <label for="custom-model" id="api-model-label">Model</label>
             <div class="input-row">
               <div class="custom-select" id="api-model-select">
-                <button class="custom-select-trigger" type="button" aria-haspopup="listbox" aria-expanded="false">
-                  <span class="custom-select-value">Select a model...</span>
+                <button class="custom-select-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="api-model-label api-model-value">
+                  <span class="custom-select-value" id="api-model-value">Select a model...</span>
                   <svg class="custom-select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
                     <polyline points="6 9 12 15 18 9"></polyline>
                   </svg>
@@ -186,11 +186,11 @@
             <input type="text" id="ollama-endpoint" placeholder="http://localhost:11434">
           </div>
           <div class="input-group compact">
-            <label>Model</label>
+            <label id="ollama-model-label">Model</label>
             <div class="input-row">
               <div class="custom-select" id="ollama-model-select">
-                <button class="custom-select-trigger" type="button" aria-haspopup="listbox" aria-expanded="false">
-                  <span class="custom-select-value">Click refresh to load</span>
+                <button class="custom-select-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="ollama-model-label ollama-model-value">
+                  <span class="custom-select-value" id="ollama-model-value">Click refresh to load</span>
                   <svg class="custom-select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
                     <polyline points="6 9 12 15 18 9"></polyline>
                   </svg>
@@ -274,7 +274,7 @@
             <span class="about-dot"></span>
             <a href="https://getpromptcraft.vercel.app/privacy.html" target="_blank" rel="noopener noreferrer">Privacy</a>
           </div>
-          <p class="version">PromptCraft v1.1.0</p>
+          <p id="version" class="version">PromptCraft</p>
         </div>
       </div>
 

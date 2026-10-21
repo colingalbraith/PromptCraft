@@ -17,8 +17,12 @@ function sendMsg(msg) {
 
 // ── Toast Notifications ─────────────────────────────────────────────────────
 
+// At most this many toasts at once, so a burst of them can't cover the panel
+const MAX_TOASTS = 3;
+
 function showToast(message, type = 'info') {
   const container = document.getElementById('toast-container');
+  while (container.childElementCount >= MAX_TOASTS) container.firstElementChild.remove();
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
   toast.textContent = message;
@@ -1890,7 +1894,7 @@ function renderModelBreakdown(byModel) {
     // Local models are free; models with no price on file show a dash rather than a made-up $0
     let costText = '—';
     if (data.provider === PROVIDERS.OLLAMA || data.provider === PROVIDERS.BUILTIN) costText = 'Free';
-    else if (TOKEN_COSTS[model] || data.costUSD > 0) costText = '$' + (data.costUSD || 0).toFixed(4);
+    else if (Object.hasOwn(TOKEN_COSTS, model) || data.costUSD > 0) costText = '$' + (data.costUSD || 0).toFixed(4);
 
     const friendlyName = modelLabel(model);
 
@@ -2056,11 +2060,14 @@ function openTemplateDetail(tpl) {
   Object.entries(STYLE_LABELS).forEach(([key, label]) => {
     const chip = document.createElement('button');
     chip.className = 'style-chip' + (key === templateTone ? ' active' : '');
+    chip.setAttribute('aria-pressed', String(key === templateTone));
     chip.textContent = label;
     chip.dataset.modifier = key;
     chip.addEventListener('click', () => {
-      els.templateToneChips.querySelectorAll('.style-chip').forEach(c => c.classList.remove('active'));
-      chip.classList.add('active');
+      els.templateToneChips.querySelectorAll('.style-chip').forEach((c) => {
+        c.classList.toggle('active', c === chip);
+        c.setAttribute('aria-pressed', String(c === chip));
+      });
     });
     els.templateToneChips.appendChild(chip);
   });
@@ -2151,6 +2158,7 @@ function openTemplatesPage() {
 
 document.addEventListener('DOMContentLoaded', () => {
   initDomRefs();
+  $('version').textContent = `PromptCraft v${chrome.runtime.getManifest().version}`;
   watchPageTab();
   applyTheme(themePreference);
   loadSettings();
