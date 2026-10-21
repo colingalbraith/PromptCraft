@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- **Shorter rewrites.** *Concise* aims for one to three sentences (with gemma3:4b the typical rewrite went from 63 to 39 words), and *Shorter* asks for about half the length of the rewrite it shortens, which it now delivers.
+- The previous rewrite in a tab is passed along only when the new draft continues it, and today's date only when the draft is time-sensitive. Small models were rewriting the earlier draft instead of the new one, or adding the date to unrelated prompts.
+- A rewrite of a few sentences written as one paragraph is no longer scored down as a wall of text. When a rewrite does score lower than the draft, the before → after badge is highlighted and says why.
+- New installs default to `gemma3` for Ollama, matching the setup steps; updates from 1.0 keep `llama3`. Embedding models are left out of the Ollama model list, so one can't become the default.
+- The side panel's shortcut hint reads ⌘ Enter on a Mac, and a rewrite that is stopped or fails partway is cleared instead of left half-written.
+
+### Fixed
+- Small models that repeated their instructions ("Enhance this prompt to be maximally effective…") and the template's guidelines had them written into the text box. They are removed, and every request now ends by asking for the prompt alone.
+
 ## 1.1.0
 
 ### Added
