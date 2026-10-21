@@ -533,11 +533,14 @@ async function handleOnboardingStart() {
       }
     }
     await sendMsg({ action: 'saveSettings', settings: { [STORAGE_KEYS.PROVIDER]: PROVIDERS.BUILTIN } });
-  } else if (onboardingSelectedProvider === 'ollama') {
-    const settings = {
-      [STORAGE_KEYS.PROVIDER]: PROVIDERS.OLLAMA,
-    };
+  } else if (onboardingSelectedProvider === PROVIDERS.OLLAMA) {
+    const settings = { [STORAGE_KEYS.PROVIDER]: PROVIDERS.OLLAMA };
+    // Start with a model that is already installed, rather than a default that may not be
+    const resp = await sendMsg({ action: 'getOllamaModels' });
+    if (resp.success && resp.models.length > 0) settings[STORAGE_KEYS.OLLAMA_MODEL] = resp.models[0];
     await sendMsg({ action: 'saveSettings', settings });
+    // Not reachable yet (not running, or not allowing extensions): say so now, not on the first rewrite
+    if (!resp.success) setTimeout(() => showToast(resp.error, 'error'), 600);
   } else {
     const key = els.onboardingApiKey.value.trim();
     if (!key) {

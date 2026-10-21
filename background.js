@@ -1099,11 +1099,14 @@ chrome.runtime.onConnect.addListener((port) => {
 
 const NON_CHAT_MODEL = /audio|realtime|tts|transcribe|whisper|image|dall-e|embedding|moderation|live|robotics|computer-use|aqa/i;
 
-async function fetchJson(target, url, headers = {}) {
+async function fetchJson(target, url, headers = {}, body = null) {
   const watchdog = createWatchdog(null);
   watchdog.arm(CONNECT_TIMEOUT_MS.default);
+  const init = body
+    ? { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) }
+    : { headers };
   try {
-    const response = await fetch(url, { headers, signal: watchdog.signal });
+    const response = await fetch(url, { ...init, signal: watchdog.signal });
     if (!response.ok) throw new Error(friendlyApiError(target, response.status, await readErrorDetail(response)));
     return await response.json();
   } catch (err) {
@@ -1144,7 +1147,11 @@ const MODEL_LISTERS = {
   },
   async ollama(target) {
     const data = await fetchJson(target, `${target.endpoint}/api/tags`);
-    return (data.models || []).map(m => ({ id: m.name, label: m.name }));
+    const models = (data.models || []).map(m => ({ id: m.name, label: m.name }));
+    // Chrome leaves the Origin header off this GET but not off the POST a rewrite makes, and
+    // Ollama refuses that unless OLLAMA_ORIGINS allows extensions. One small POST checks it.
+    if (models.length > 0) await fetchJson(target, `${target.endpoint}/api/show`, {}, { model: models[0].id });
+    return models;
   }
 };
 

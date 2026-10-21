@@ -1,28 +1,33 @@
-// End-to-end check against a real local model. Skips itself when Ollama isn't running.
+// End-to-end check against a real local model. Skips itself when Ollama isn't
+// running, or when it is but doesn't allow requests from browser extensions.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadWorker } = require('./harness');
 
 const ENDPOINT = process.env.OLLAMA_ENDPOINT || 'http://localhost:11434';
+// The Origin header Chrome attaches to extension requests
+const EXTENSION_ORIGIN = 'chrome-extension://abcdefghijklmnopabcdefghijklmnop';
 
-async function installedModels() {
+// Why the test can't run here, or the installed models smallest first
+async function probeOllama() {
   try {
-    const resp = await fetch(`${ENDPOINT}/api/tags`, { signal: AbortSignal.timeout(2000) });
-    return (await resp.json()).models.sort((a, b) => a.size - b.size).map(m => m.name);
+    const resp = await fetch(`${ENDPOINT}/api/tags`, { headers: { Origin: EXTENSION_ORIGIN }, signal: AbortSignal.timeout(2000) });
+    if (resp.status === 403) return { skip: `Ollama at ${ENDPOINT} refuses browser extensions (start it with OLLAMA_ORIGINS=chrome-extension://*)` };
+    const models = (await resp.json()).models.sort((a, b) => a.size - b.size).map(m => m.name);
+    return models.length > 0 ? { models } : { skip: `Ollama at ${ENDPOINT} has no models installed` };
   } catch {
-    return [];
+    return { skip: `Ollama not reachable at ${ENDPOINT}` };
   }
 }
 
 test('live Ollama: a real model streams a rewrite through the worker', { timeout: 300000 }, async (t) => {
-  const models = await installedModels();
-  if (models.length === 0) return t.skip(`Ollama not reachable at ${ENDPOINT}`);
+  const { skip, models } = await probeOllama();
+  if (skip) return t.skip(skip);
   const model = process.env.OLLAMA_MODEL || models[0];
 
   const worker = loadWorker({
     sync: { provider: 'ollama', ollamaEndpoint: ENDPOINT, ollamaModel: model },
-    // Send the Origin header Chrome attaches to extension requests
-    fetch: (call) => fetch(call.url, { ...call.init, headers: { ...call.init.headers, Origin: 'chrome-extension://abcdefghijklmnopabcdefghijklmnop' } })
+    fetch: (call) => fetch(call.url, { ...call.init, headers: { ...call.init.headers, Origin: EXTENSION_ORIGIN } })
   });
 
   const listed = await worker.send({ action: 'getOllamaModels', settings: { ollamaEndpoint: ENDPOINT } });

@@ -318,6 +318,26 @@ test('Ollama 403 explains the OLLAMA_ORIGINS fix', async () => {
   assert.match(result.error, /OLLAMA_ORIGINS=chrome-extension:\/\/\*/);
 });
 
+test('Ollama is only reported as connected when it accepts the requests a rewrite makes', async () => {
+  // Chrome omits the Origin header on the model-list GET, so Ollama answers it even
+  // when it would refuse every rewrite (a POST) for coming from an extension
+  const ollama = (refusePosts) => loadWorker({
+    fetch: (call) => (call.method === 'POST' && refusePosts
+      ? new Response('', { status: 403 })
+      : jsonResponse({ models: [{ name: 'gemma3:4b' }, { name: 'qwen3:0.6b' }] }))
+  });
+
+  const blocked = ollama(true);
+  const refused = await blocked.send({ action: 'getOllamaModels', settings: { ollamaEndpoint: 'http://localhost:11434' } });
+  assert.equal(refused.success, false);
+  assert.match(refused.error, /OLLAMA_ORIGINS=chrome-extension:\/\/\*/);
+  assert.deepEqual(blocked.calls.map(c => `${c.method} ${c.url}`), ['GET http://localhost:11434/api/tags', 'POST http://localhost:11434/api/show']);
+  assert.deepEqual(blocked.calls[1].body, { model: 'gemma3:4b' });
+
+  const allowed = await ollama(false).send({ action: 'getOllamaModels', settings: { ollamaEndpoint: 'http://localhost:11434' } });
+  assert.deepEqual(plain(allowed), { success: true, models: ['gemma3:4b', 'qwen3:0.6b'] });
+});
+
 test('a server error is retried once', async () => {
   let attempt = 0;
   const worker = loadWorker({
