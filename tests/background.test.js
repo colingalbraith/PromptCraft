@@ -682,6 +682,22 @@ test('built-in model: when it is not ready the reason is given and nothing is ru
   }
 });
 
+test('built-in model: a browser that never answers is reported, not waited on', async () => {
+  // Some browsers leave availability() pending forever; the side panel must not hang on it
+  const model = fakeLanguageModel({ availability: new Promise(() => {}) });
+  const worker = builtinWorker(model);
+  const started = Date.now();
+  const [state, result] = await Promise.all([
+    worker.send({ action: 'getBuiltInState' }, SENDERS.popup),
+    worker.connect().enhance({ prompt: 'write me somthing about dogs' }, 10000)
+  ]);
+  assert.ok(Date.now() - started < 8000);
+  assert.equal(state.state, 'unresponsive');
+  assert.equal(result.type, 'error');
+  assert.match(result.error, /not responding/);
+  assert.equal(model.log.created.length, 0);
+});
+
 test('built-in model: an over-long prompt gets a plain explanation', async () => {
   const model = fakeLanguageModel({ chunks: [], error: Object.assign(new Error('The input is too large.'), { name: 'QuotaExceededError' }) });
   const result = await builtinWorker(model).connect().enhance({ prompt: 'a very long draft' });

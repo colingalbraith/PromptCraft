@@ -77,20 +77,30 @@ function resolveTarget(settings) {
   };
 }
 
+// availability() normally answers at once, but some browsers leave it pending
+// indefinitely (the built-in model turned off by policy, or its components not yet loaded)
+const BUILTIN_CHECK_TIMEOUT_MS = 4000;
+
 // What the browser says about its built-in model: 'available', 'downloadable',
-// 'downloading' or 'unavailable', or 'unsupported' when it has no such model at all
+// 'downloading' or 'unavailable'; 'unsupported' when it has no such model at all,
+// and 'unresponsive' when it doesn't answer in time
 async function builtInState() {
   if (typeof LanguageModel === 'undefined') return 'unsupported';
+  let timer = null;
+  const timeout = new Promise(resolve => { timer = setTimeout(resolve, BUILTIN_CHECK_TIMEOUT_MS, 'unresponsive'); });
   try {
-    return await LanguageModel.availability(BUILTIN_SESSION_OPTIONS);
+    return await Promise.race([LanguageModel.availability(BUILTIN_SESSION_OPTIONS), timeout]);
   } catch {
     return 'unavailable';
+  } finally {
+    clearTimeout(timer);
   }
 }
 
 const BUILTIN_PROBLEMS = {
   unsupported: 'This browser has no built-in model. Pick another provider in Settings.',
   unavailable: 'The built-in model can\'t run on this computer right now (it needs about 22 GB of free disk space). Pick another provider in Settings.',
+  unresponsive: 'The browser\'s built-in model is not responding. Try again in a moment, or pick another provider in Settings.',
   downloadable: 'The built-in model has not been downloaded yet. Open Settings in the PromptCraft panel to download it.',
   downloading: 'The built-in model is still downloading. Try again in a few minutes.'
 };

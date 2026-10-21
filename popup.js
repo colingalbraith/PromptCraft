@@ -305,7 +305,8 @@ async function loadSettings() {
   else if (s.provider === PROVIDERS.OLLAMA) els.providerOllamaRadio.checked = true;
   else els.providerApiRadio.checked = true;
   updateProviderTabs();
-  await refreshBuiltInState();
+  // The browser can take a few seconds to say whether its own model runs here; nothing waits for it
+  const builtIn = refreshBuiltInState();
 
   // API provider
   selectedApiProvider = s[STORAGE_KEYS.API_PROVIDER] || API_PROVIDERS.GEMINI;
@@ -349,8 +350,9 @@ async function loadSettings() {
   renderStyleChips();
   renderPresetList();
 
-  // Update provider status bar
+  // Update provider status bar, again once the built-in model's state is known
   updateProviderStatus(s);
+  if (s.provider === PROVIDERS.BUILTIN) builtIn.then(() => updateProviderStatus(s));
 
   // Auto-fetch Ollama models (non-blocking)
   if (s.provider === PROVIDERS.OLLAMA) {
@@ -363,8 +365,10 @@ async function loadSettings() {
   // Check if onboarding is needed
   if (needsOnboarding(s)) {
     navigateTo(els.onboardingPage);
-    // Where the browser can run its own model, starting takes one click
-    if (builtInUsable()) selectOnboardingProvider(PROVIDERS.BUILTIN);
+    // Where the browser can run its own model, starting takes one click, unless the user has already picked something
+    builtIn.then(() => {
+      if (builtInUsable() && !onboardingSelectedProvider) selectOnboardingProvider(PROVIDERS.BUILTIN);
+    });
   }
 }
 
@@ -415,7 +419,8 @@ async function confirmBuiltIn() {
 const BUILTIN_STATUS = {
   available: ['Ready to use.', 'success'],
   downloadable: ['Your browser downloads the model once (a few GB). You can keep browsing while it does.', ''],
-  downloading: ['Your browser is downloading the model.', 'testing']
+  downloading: ['Your browser is downloading the model.', 'testing'],
+  unresponsive: ['Your browser\'s built-in model isn\'t responding. Try again in a moment.', 'error']
 };
 
 async function refreshBuiltInState() {
