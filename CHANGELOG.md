@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.2
+
+### Changed
+- The Website and Privacy links in the side panel go to the site's new home on GitHub Pages, [colingalbraith.github.io/PromptCraft](https://colingalbraith.github.io/PromptCraft/). The previous address showed a login page.
+
 ## 1.1.1
 
 ### Changed
