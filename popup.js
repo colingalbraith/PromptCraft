@@ -226,7 +226,7 @@ function updateProviderStatus(settings) {
   let label, model, hasKey;
 
   if (isOllama) {
-    model = settings[STORAGE_KEYS.OLLAMA_MODEL] || 'llama3';
+    model = settings[STORAGE_KEYS.OLLAMA_MODEL] || DEFAULT_SETTINGS[STORAGE_KEYS.OLLAMA_MODEL];
     label = `Ollama \u00B7 ${model}`;
     hasKey = true; // Ollama doesn't need a key
   } else {

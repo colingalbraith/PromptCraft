@@ -1247,7 +1247,10 @@ const MODEL_LISTERS = {
   },
   async ollama(target) {
     const data = await fetchJson(target, `${target.endpoint}/api/tags`);
-    const models = (data.models || []).map(m => ({ id: m.name, label: m.name }));
+    // Embedding models (nomic-embed-text, bge, ...) can't write text, so they are never offered
+    const models = (data.models || [])
+      .filter(m => !/bert/i.test(m.details?.family || '') && !/embed/i.test(m.name))
+      .map(m => ({ id: m.name, label: m.name }));
     // Chrome leaves the Origin header off this GET but not off the POST a rewrite makes, and
     // Ollama refuses that unless OLLAMA_ORIGINS allows extensions. One small POST checks it.
     if (models.length > 0) await fetchJson(target, `${target.endpoint}/api/show`, {}, { model: models[0].id });
@@ -1308,7 +1311,7 @@ async function triggerEnhanceInTab(tabId, frameId = 0) {
   }
 }
 
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener(({ reason } = {}) => {
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({
       id: 'rewrite-with-promptcraft',
@@ -1316,7 +1319,17 @@ chrome.runtime.onInstalled.addListener(() => {
       contexts: ['editable']
     }, () => void chrome.runtime.lastError);
   });
+  if (reason === 'update') keepLegacyOllamaModel().catch(() => {});
 });
+
+// Version 1.0 saved no Ollama model during setup and used llama3. The default is
+// now gemma3, so anyone updating with Ollama and no saved model keeps llama3.
+async function keepLegacyOllamaModel() {
+  const saved = await chrome.storage.sync.get([STORAGE_KEYS.PROVIDER, STORAGE_KEYS.OLLAMA_MODEL]);
+  if (saved[STORAGE_KEYS.PROVIDER] === PROVIDERS.OLLAMA && !saved[STORAGE_KEYS.OLLAMA_MODEL]) {
+    await chrome.storage.sync.set({ [STORAGE_KEYS.OLLAMA_MODEL]: 'llama3' });
+  }
+}
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === 'rewrite-with-promptcraft' && tab?.id) {

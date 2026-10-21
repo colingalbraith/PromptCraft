@@ -382,6 +382,32 @@ test('Ollama 403 explains the OLLAMA_ORIGINS fix', async () => {
   assert.match(result.error, /OLLAMA_ORIGINS=chrome-extension:\/\/\*/);
 });
 
+test('Ollama embedding models are never offered as a rewrite model', async () => {
+  const worker = loadWorker({
+    fetch: (call) => jsonResponse(call.method === 'POST' ? {} : { models: [
+      { name: 'nomic-embed-text:latest', details: { family: 'nomic-bert' } },
+      { name: 'mxbai-embed-large:latest', details: { family: 'bert' } },
+      { name: 'gemma3:4b', details: { family: 'gemma3' } }
+    ] })
+  });
+  const resp = await worker.send({ action: 'getOllamaModels', settings: { ollamaEndpoint: 'http://localhost:11434' } });
+  assert.deepEqual(plain(resp.models), ['gemma3:4b']);
+  assert.deepEqual(worker.calls[1].body, { model: 'gemma3:4b' }, 'the connection check uses a model that can write');
+});
+
+test('updating from 1.0 keeps llama3 for Ollama users who never picked a model', async () => {
+  const update = async (sync, reason = 'update') => {
+    const worker = loadWorker({ sync });
+    worker.events.onInstalled.listeners.forEach(fn => fn({ reason }));
+    await new Promise(r => setTimeout(r, 20));
+    return worker.storage.sync.data.ollamaModel;
+  };
+  assert.equal(await update({ provider: 'ollama' }), 'llama3');
+  assert.equal(await update({ provider: 'ollama', ollamaModel: 'qwen3:8b' }), 'qwen3:8b');
+  assert.equal(await update({ provider: 'api' }), undefined);
+  assert.equal(await update({ provider: 'ollama' }, 'install'), undefined, 'new installs get the current default');
+});
+
 test('Ollama is only reported as connected when it accepts the requests a rewrite makes', async () => {
   // Chrome omits the Origin header on the model-list GET, so Ollama answers it even
   // when it would refuse every rewrite (a POST) for coming from an extension
