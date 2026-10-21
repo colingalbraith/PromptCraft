@@ -737,6 +737,18 @@ test('a draft is reviewed locally, with no network request', async () => {
   assert.equal(worker.calls.length, 0);
 });
 
+test('a clear one-paragraph rewrite is not marked down as a wall of text', () => {
+  // A top-level const in the worker, so it is read from the sandbox's scope
+  const InputParser = require('vm').runInContext('InputParser', loadWorker().sandbox);
+  const draft = 'write an email to my landlord about the broken heater, its been 2 weeks';
+  const rewrite = 'Compose a formal email to my landlord about the heater in my apartment, which has been broken for two weeks. ' +
+    'Describe the problem and the dates I reported it, explain how the cold is affecting daily life, and request a repair within five business days. ' +
+    'Keep a polite but firm tone, stay under 200 words, and end by asking for written confirmation of the repair date.';
+  const after = InputParser.scorePrompt(rewrite);
+  assert.ok(after.breakdown.structure >= 40, `structure ${after.breakdown.structure}`);
+  assert.ok(after.overall > InputParser.scorePrompt(draft).overall);
+});
+
 test('a page can ask for the side panel to be opened beside its own tab', async () => {
   const worker = loadWorker();
   // The click's user gesture only lasts while the listener runs, so the panel must be opened without delay

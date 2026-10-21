@@ -771,10 +771,11 @@ const InputParser = {
     const separators = (text.match(/(?:^|\n)\s*[-=]{3,}\s*(?:\n|$)/gm) || []).length;
     score += Math.min(5, separators * 3);
 
-    // Penalize wall-of-text: long text with no line breaks
-    if (words.length > 40 && nonEmptyLines.length <= 1) {
+    // Penalize wall-of-text: long text with no line breaks. A focused prompt of a
+    // few sentences reads fine as one paragraph, so the penalty starts past that.
+    if (words.length > 90 && nonEmptyLines.length <= 1) {
       score -= 20;
-    } else if (words.length > 80 && nonEmptyLines.length <= 3) {
+    } else if (words.length > 150 && nonEmptyLines.length <= 3) {
       score -= 15;
     }
 

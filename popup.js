@@ -1257,6 +1257,11 @@ function showEnhanceResult(result) {
   const post = result.postScore?.overall;
   if (typeof pre === 'number' && typeof post === 'number') {
     els.scoreBadge.textContent = `${pre} → ${post}`;
+    // A lower score usually means a weak rewrite from a small model: say so rather than show it as a result
+    els.scoreBadge.classList.toggle('down', post < pre);
+    els.scoreBadge.title = post < pre
+      ? 'This rewrite scored lower than your draft. Try again, or pick a larger model in Settings.'
+      : 'Prompt quality score, before and after (0-100)';
     els.scoreBadge.classList.remove('hidden');
   }
   if (result.truncated) showToast('The model hit its length limit, so the end may be cut off.', 'info');

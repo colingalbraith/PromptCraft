@@ -826,6 +826,12 @@ textarea {
   white-space: nowrap;
 }
 
+/* The rewrite scored lower than the draft: highlighted as something to look at */
+.score-badge.down {
+  background: var(--marker);
+  color: var(--marker-ink);
+}
+
 .output-text {
   max-height: 250px;
   overflow-y: auto;
