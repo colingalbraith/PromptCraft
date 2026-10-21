@@ -57,8 +57,11 @@ website/
 ├── js/
 │   └── main.js          # Splash, scroll reveals, particles, nav
 └── assets/
-    ├── demo.mp4         # Extension demo video
-    ├── logo.png         # PromptCraft logo (full)
+    ├── demo.mp4         # Extension demo video (hero)
+    ├── demo-poster.jpg  # First frame, shown until the video plays
+    ├── og-image.png     # Social sharing image, rendered from og-card.html
+    ├── screens/         # Screenshots for "See it in action" (WebP)
+    ├── logo.png         # PromptCraft logo (256px)
     ├── icon128.png      # Logo 128px
     ├── icon48.png       # Logo 48px (favicon)
     ├── gemini.png       # Gemini provider logo

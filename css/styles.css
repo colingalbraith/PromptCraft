@@ -878,6 +878,57 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
     color: var(--text-secondary);
 }
 
+/* ===== Screenshots ===== */
+.screens {
+    padding: 56px 0;
+}
+
+.screens .section-header {
+    margin-bottom: 56px;
+}
+
+.screens-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+}
+
+.screen {
+    margin: 0;
+}
+
+.screen img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-lg);
+}
+
+.screen figcaption {
+    margin-top: 14px;
+    font-size: 1rem;
+    line-height: 1.5;
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+.screen figcaption strong {
+    color: var(--text);
+}
+
+/* The outline button on the dark call-to-action card */
+.cta-card .btn-ghost {
+    color: var(--text-on-dark);
+    border-color: rgba(245, 240, 232, 0.3);
+}
+
+.cta-card .btn-ghost:hover {
+    color: #FFFFFF;
+    border-color: rgba(245, 240, 232, 0.6);
+}
+
 /* ===== How It Works ===== */
 .how-it-works {
     padding: 56px 0;
@@ -1471,6 +1522,8 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
 }
 
 @media (max-width: 768px) {
+    .screens-grid { grid-template-columns: 1fr; }
+
     .mobile-toggle { display: flex; }
 
     .nav-links {
