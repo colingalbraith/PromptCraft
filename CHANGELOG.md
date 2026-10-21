@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.1
 
 ### Changed
 - **Shorter rewrites.** *Concise* aims for one to three sentences (with gemma3:4b the typical rewrite went from 63 to 39 words), and *Shorter* asks for about half the length of the rewrite it shortens, which it now delivers.
