@@ -101,9 +101,10 @@ const InputParser = {
       'error'
     );
 
-    // Extract data-like patterns (JSON objects, CSV-like rows, key:value pairs)
+    // Extract data-like patterns (JSON objects, CSV-like rows, key:value pairs).
+    // The search from each bracket is bounded, so unclosed brackets cost linear time.
     remaining = this._extract(remaining, segments,
-      /\{[\s\S]{10,}?\}|\[[\s\S]{10,}?\]/g,
+      /\{[\s\S]{10,2000}?\}|\[[\s\S]{10,2000}?\]/g,
       'data'
     );
 
@@ -346,7 +347,8 @@ const InputParser = {
     const types = [];
 
     // Code detection — each pattern needs code syntax around the keyword, so
-    // ordinary words like "from", "class", "public" or "..." don't count
+    // ordinary words like "from", "class", "public" or "..." don't count.
+    // Identifier patterns start at a word boundary: one long token must not cost quadratic time.
     const codePatterns = [
       /```/,
       /\b(function|const|let|var|class|import|export|return|if|else|for|while|switch|try|catch)\b\s*[\({]/,
@@ -361,7 +363,7 @@ const InputParser = {
       /^\s*(#include|using namespace|package |import java)/m,
       /\bSELECT\s+.*\s+FROM\b|\bINSERT\s+INTO\b|\bCREATE\s+TABLE\b/,
       /\.(map|filter|reduce|forEach|push|pop|slice|concat)\(/,
-      /[a-zA-Z_]\w*\s*=\s*[a-zA-Z_]\w*\s*\(/,
+      /\b[a-zA-Z_]\w*\s*=\s*[a-zA-Z_]\w*\s*\(/,
     ];
     if (codePatterns.some(p => p.test(text))) {
       types.push('code');
@@ -659,7 +661,7 @@ const InputParser = {
     score += Math.min(15, numberMatches.length * 5);
 
     // Reward technical terms (camelCase, snake_case, PascalCase, acronyms, file extensions)
-    const technicalPatterns = text.match(/\b[a-z]+[A-Z][a-zA-Z]*\b|[a-z]+_[a-z]+|\b[A-Z]{2,}\b|\b\w+\.\w{1,5}\b/g) || [];
+    const technicalPatterns = text.match(/\b[a-z]+[A-Z][a-zA-Z]*\b|\b[a-z]+_[a-z]+|\b[A-Z]{2,}\b|\b\w+\.\w{1,5}\b/g) || [];
     score += Math.min(12, technicalPatterns.length * 3);
 
     // Reward quoted terms (shows specificity)

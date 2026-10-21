@@ -870,25 +870,27 @@
    */
   function extractSpecialTerms(text) {
     const terms = new Set();
+    // Every pattern starts at a word boundary: a pasted blob with no spaces must
+    // not cost quadratic time on the page's main thread
     // camelCase / PascalCase identifiers (e.g. useState, DataFrame)
-    const camelCase = text.match(/[a-z][a-zA-Z0-9]*[A-Z][a-zA-Z0-9]*/g) || [];
+    const camelCase = text.match(/\b[a-z][a-zA-Z0-9]*[A-Z][a-zA-Z0-9]*/g) || [];
     camelCase.forEach(t => terms.add(t.toLowerCase()));
     // PascalCase starting with uppercase
-    const pascal = text.match(/[A-Z][a-z]+[A-Z][a-zA-Z0-9]*/g) || [];
+    const pascal = text.match(/\b[A-Z][a-z]+[A-Z][a-zA-Z0-9]*/g) || [];
     pascal.forEach(t => terms.add(t.toLowerCase()));
     // UPPER_CASE constants
-    const upperConst = text.match(/[A-Z][A-Z0-9_]{2,}/g) || [];
+    const upperConst = text.match(/\b[A-Z][A-Z0-9_]{2,}/g) || [];
     upperConst.forEach(t => terms.add(t.toLowerCase()));
     // dotted identifiers (e.g. np.array, os.path)
-    const dotted = text.match(/[a-zA-Z_][a-zA-Z0-9_]*\.[a-zA-Z_][a-zA-Z0-9_]*/g) || [];
+    const dotted = text.match(/\b[a-zA-Z_][a-zA-Z0-9_]*\.[a-zA-Z_][a-zA-Z0-9_]*/g) || [];
     dotted.forEach(t => terms.add(t.toLowerCase()));
     // Words containing digits mixed with letters (e.g. h264, utf8, int32)
-    const alphaNum = text.match(/[a-zA-Z]+\d+[a-zA-Z0-9]*/g) || [];
+    const alphaNum = text.match(/\b[a-zA-Z]+\d+[a-zA-Z0-9]*/g) || [];
     alphaNum.forEach(t => terms.add(t.toLowerCase()));
-    const numAlpha = text.match(/\d+[a-zA-Z]+[a-zA-Z0-9]*/g) || [];
+    const numAlpha = text.match(/\b\d+[a-zA-Z]+[a-zA-Z0-9]*/g) || [];
     numAlpha.forEach(t => terms.add(t.toLowerCase()));
     // Code-like patterns with underscores (e.g. my_function, data_frame)
-    const underscore = text.match(/[a-zA-Z][a-zA-Z0-9]*_[a-zA-Z0-9_]+/g) || [];
+    const underscore = text.match(/\b[a-zA-Z][a-zA-Z0-9]*_[a-zA-Z0-9_]+/g) || [];
     underscore.forEach(t => terms.add(t.toLowerCase()));
     return terms;
   }
