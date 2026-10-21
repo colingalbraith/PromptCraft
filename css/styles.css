@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
-
 /* ===== Design Tokens ===== */
 :root {
     --accent: #D4872E;
@@ -89,202 +87,6 @@
     }
 }
 
-/* ===== Splash Screen ===== */
-.splash {
-    position: fixed;
-    inset: 0;
-    z-index: 9999;
-    background: var(--bg-dark);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-    transition: opacity 0.8s ease, visibility 0.8s ease;
-}
-
-.splash.hidden {
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-}
-
-/* Expanding rings behind logo */
-.splash-ring {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    border-radius: 50%;
-    border: 1px solid rgba(212, 135, 46, 0.12);
-    transform: translate(-50%, -50%) scale(0);
-    animation: ringExpand 3s ease-out infinite;
-}
-
-.splash-ring-1 {
-    width: 300px;
-    height: 300px;
-    animation-delay: 0s;
-}
-
-.splash-ring-2 {
-    width: 500px;
-    height: 500px;
-    animation-delay: 0.6s;
-}
-
-.splash-ring-3 {
-    width: 700px;
-    height: 700px;
-    animation-delay: 1.2s;
-}
-
-@keyframes ringExpand {
-    0% {
-        transform: translate(-50%, -50%) scale(0);
-        opacity: 0.6;
-    }
-    100% {
-        transform: translate(-50%, -50%) scale(1.5);
-        opacity: 0;
-    }
-}
-
-/* Floating dots */
-.splash-dots {
-    position: absolute;
-    inset: 0;
-}
-
-.splash-dots span {
-    position: absolute;
-    width: 4px;
-    height: 4px;
-    border-radius: 50%;
-    background: var(--accent);
-    opacity: 0;
-    animation: splashDotFloat 4s ease-in-out infinite;
-}
-
-.splash-dots span:nth-child(1) { top: 20%; left: 15%; animation-delay: 0s; }
-.splash-dots span:nth-child(2) { top: 70%; left: 80%; animation-delay: 0.5s; }
-.splash-dots span:nth-child(3) { top: 30%; left: 75%; animation-delay: 1s; width: 3px; height: 3px; }
-.splash-dots span:nth-child(4) { top: 80%; left: 25%; animation-delay: 1.5s; }
-.splash-dots span:nth-child(5) { top: 15%; left: 55%; animation-delay: 0.3s; width: 5px; height: 5px; }
-.splash-dots span:nth-child(6) { top: 60%; left: 10%; animation-delay: 0.8s; width: 3px; height: 3px; }
-.splash-dots span:nth-child(7) { top: 45%; left: 90%; animation-delay: 1.3s; }
-.splash-dots span:nth-child(8) { top: 85%; left: 60%; animation-delay: 0.2s; width: 5px; height: 5px; }
-
-@keyframes splashDotFloat {
-    0%, 100% {
-        opacity: 0;
-        transform: translateY(0) scale(1);
-    }
-    20% { opacity: 0.5; }
-    50% {
-        opacity: 0.3;
-        transform: translateY(-20px) scale(1.3);
-    }
-    80% { opacity: 0.5; }
-}
-
-/* Center content */
-.splash-content {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 16px;
-}
-
-.splash-logo {
-    width: 110px;
-    height: 110px;
-    border-radius: 22px;
-    object-fit: contain;
-    animation: splashLogoIn 0.8s var(--ease-spring) both;
-    filter: drop-shadow(0 8px 24px rgba(212, 135, 46, 0.3));
-}
-
-@keyframes splashLogoIn {
-    0% { opacity: 0; transform: scale(0.4) rotate(-15deg); }
-    60% { transform: scale(1.08) rotate(3deg); }
-    100% { opacity: 1; transform: scale(1) rotate(0deg); }
-}
-
-.splash-title {
-    font-size: 2rem;
-    font-weight: 900;
-    color: var(--text-on-dark);
-    letter-spacing: -0.03em;
-    animation: splashFadeUp 0.6s ease 0.3s both;
-}
-
-.splash-tagline {
-    font-size: 0.95rem;
-    color: var(--text-on-dark-secondary);
-    font-weight: 500;
-    animation: splashFadeUp 0.6s ease 0.5s both;
-}
-
-@keyframes splashFadeUp {
-    0% { opacity: 0; transform: translateY(14px); }
-    100% { opacity: 1; transform: translateY(0); }
-}
-
-.splash-bar {
-    width: 200px;
-    height: 3px;
-    background: rgba(255, 255, 255, 0.08);
-    border-radius: 3px;
-    overflow: hidden;
-    margin-top: 8px;
-    animation: splashFadeUp 0.4s ease 0.7s both;
-}
-
-.splash-bar-fill {
-    height: 100%;
-    width: 0%;
-    background: linear-gradient(90deg, var(--accent), var(--gold));
-    border-radius: 3px;
-    animation: splashFill 2s ease 0.8s forwards;
-}
-
-@keyframes splashFill {
-    0% { width: 0%; }
-    40% { width: 50%; }
-    70% { width: 85%; }
-    100% { width: 100%; }
-}
-
-.splash-tips {
-    position: relative;
-    height: 20px;
-    margin-top: 4px;
-    animation: splashFadeUp 0.5s ease 1s both;
-}
-
-.splash-tip {
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
-    white-space: nowrap;
-    font-size: 0.78rem;
-    font-weight: 500;
-    color: var(--text-on-dark-secondary);
-    letter-spacing: 0.02em;
-    opacity: 0;
-    transition: opacity 0.4s ease, transform 0.4s ease;
-    transform: translateX(-50%) translateY(8px);
-}
-
-.splash-tip.active {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-}
-
-/* Lock scroll during splash */
-body.loading { overflow: hidden; }
-
 /* ===== Reset ===== */
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -292,7 +94,7 @@ html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
 
 
 body {
-    font-family: 'Satoshi', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-family: 'Satoshi', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     line-height: 1.6;
     color: var(--text);
     background: var(--bg);
@@ -713,32 +515,36 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
     white-space: nowrap;
 }
 
-.stat-provider-logos {
+.stat-provider-list {
     display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.stat-provider-icon {
-    width: 36px;
-    height: 36px;
-    display: flex;
-    align-items: center;
+    flex-wrap: wrap;
     justify-content: center;
-    border-radius: 6px;
-    overflow: hidden;
-    transition: transform 0.2s var(--ease-spring);
+    gap: 6px;
+    max-width: 320px;
+    list-style: none;
 }
 
-.stat-provider-icon:hover {
-    transform: scale(1.2);
+.stat-provider-list li {
+    padding: 3px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    white-space: nowrap;
 }
 
-.stat-provider-icon img,
-.stat-provider-icon svg {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
+.hero-works {
+    margin-top: 18px;
+    max-width: 460px;
+    font-size: 0.95rem;
+    line-height: 1.55;
+    color: var(--text-tertiary);
+}
+
+.hero-video-body video {
+    cursor: pointer;
 }
 
 /* ===== Providers (legacy, hidden) ===== */
@@ -819,7 +625,6 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
 
 .accent-mark {
     color: var(--accent);
-    margin-left: 4px;
 }
 
 .section-header p {
@@ -927,6 +732,164 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
 .cta-card .btn-ghost:hover {
     color: #FFFFFF;
     border-color: rgba(245, 240, 232, 0.6);
+}
+
+/* ===== Install ===== */
+.install {
+    padding: 56px 0;
+}
+
+.install .section-header,
+.faq .section-header {
+    margin-bottom: 48px;
+}
+
+.install-steps {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    list-style: none;
+    counter-reset: step;
+}
+
+.install-steps li {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 52px 22px 24px;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    background: rgba(253, 249, 245, 0.95);
+    counter-increment: step;
+}
+
+.install-steps li::before {
+    content: counter(step);
+    position: absolute;
+    top: 18px;
+    left: 22px;
+    width: 26px;
+    height: 26px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #FFFFFF;
+    font-size: 0.85rem;
+    font-weight: 800;
+}
+
+.install-steps h3 {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.install-steps p {
+    font-size: 1rem;
+    line-height: 1.6;
+    color: var(--text-secondary);
+}
+
+.install-steps .btn {
+    margin-top: auto;
+}
+
+.install code,
+.faq kbd {
+    padding: 1px 6px;
+    border-radius: 6px;
+    background: var(--accent-soft);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.88em;
+    color: var(--text);
+}
+
+.install-copy {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: auto;
+}
+
+.install-copy code {
+    padding: 8px 12px;
+}
+
+.install-copy-btn {
+    padding: 7px 14px;
+    border-radius: var(--radius-sm);
+    border: 1.5px solid var(--border);
+    font-weight: 600;
+    color: var(--text-secondary);
+    transition: border-color 0.2s var(--ease), color 0.2s var(--ease);
+}
+
+.install-copy-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+/* ===== FAQ ===== */
+.faq {
+    padding: 56px 0;
+}
+
+.faq-list {
+    max-width: 760px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.faq details {
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    background: rgba(253, 249, 245, 0.95);
+}
+
+.faq summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 18px 22px;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text);
+    cursor: pointer;
+    list-style: none;
+}
+
+.faq summary::-webkit-details-marker {
+    display: none;
+}
+
+.faq summary::after {
+    content: '+';
+    flex-shrink: 0;
+    font-size: 1.4rem;
+    font-weight: 500;
+    color: var(--accent);
+    transition: transform 0.2s var(--ease);
+}
+
+.faq details[open] summary::after {
+    transform: rotate(45deg);
+}
+
+.faq details p {
+    padding: 0 22px 20px;
+    font-size: 1rem;
+    line-height: 1.7;
+    color: var(--text-secondary);
+}
+
+.faq details a {
+    color: var(--accent);
 }
 
 /* ===== How It Works ===== */
@@ -1518,10 +1481,14 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
 
 /* ===== Responsive ===== */
 @media (max-width: 1024px) {
+    .install-steps { grid-template-columns: repeat(2, 1fr); }
+
     .features-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-width: 768px) {
+    .install-steps { grid-template-columns: 1fr; }
+
     .screens-grid { grid-template-columns: 1fr; }
 
     .mobile-toggle { display: flex; }
