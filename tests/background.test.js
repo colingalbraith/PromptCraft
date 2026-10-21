@@ -126,6 +126,35 @@ test('wrapping quotes, fences and labels are removed', () => {
   assert.equal(cleanEnhancedText('<think>hmm, tea</think>\n\nWrite a limerick about tea.'), 'Write a limerick about tea.');
 });
 
+test('delimiter tags and wrapping quotes echoed by small models are removed, as they stream too', async () => {
+  const rewrite = 'Write a haiku about autumn rain, then explain its imagery in two sentences.';
+  for (const raw of [
+    `<draft_prompt>\n${rewrite}\n</draft_prompt>`,
+    `<enhanced_prompt>${rewrite}</enhanced_prompt>`,
+    `“${rewrite}”`,
+    `"${rewrite}"`,
+    `Here is the improved prompt:\n<draft_prompt>${rewrite}</draft_prompt>`
+  ]) {
+    const port = openaiWorker(raw).connect();
+    const done = await port.enhance({ prompt: 'haiku pls' });
+    assert.equal(done.text, rewrite, raw);
+    assert.equal(port.streamed(), rewrite, raw);
+  }
+});
+
+test('quotes and tags that belong to the rewrite are kept', async () => {
+  for (const rewrite of [
+    'Compare "tabs" and "spaces" for a style guide, and recommend one.',
+    'Rewrite this sentence so the quote stays at the end: he said "go"',
+    'Wrap each section in tags such as <context> and </context>.'
+  ]) {
+    const port = openaiWorker(rewrite).connect();
+    const done = await port.enhance({ prompt: 'style guide' });
+    assert.equal(done.text, rewrite);
+    assert.equal(port.streamed(), rewrite);
+  }
+});
+
 test('a leading <think> block never reaches the page, even split across chunks', async () => {
   const worker = loadWorker({
     sync: { provider: 'ollama', ollamaModel: 'qwen3:8b' },

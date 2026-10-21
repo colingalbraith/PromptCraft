@@ -598,14 +598,28 @@ function stripThinkBlock(text) {
   return text.replace(/^\s*<think>[\s\S]*?(<\/think>|$)\s*/i, '');
 }
 
+// The draft arrives in <draft_prompt> tags. Small models sometimes echo them
+// around the answer, or wrap it in a tag of their own.
+const WRAPPER_TAGS = 'draft_prompt|previous_rewrite|enhanced_prompt|improved_prompt|rewritten_prompt';
+const OPENING_TAG = new RegExp(`^\\s*<(?:${WRAPPER_TAGS})>\\s*`, 'i');
+const CLOSING_TAG = new RegExp(`\\s*</(?:${WRAPPER_TAGS})>\\s*$`, 'i');
+
+function stripWrapperTags(text) {
+  return text.replace(OPENING_TAG, '').replace(CLOSING_TAG, '');
+}
+
+// An answer wrapped in one pair of quotes is unwrapped
+const QUOTE_PAIRS = { '"': '"', '“': '”' };
+
 function cleanEnhancedText(raw) {
-  let text = stripLeadIn(stripThinkBlock(raw || ''));
+  // Chatter can come before the tags or inside them
+  let text = stripWrapperTags(stripLeadIn(stripWrapperTags(stripThinkBlock(raw || ''))));
 
   // Unwrap a response that is one code fence or one quoted string
   const fence = text.match(/^```[\w-]*\n([\s\S]*?)\n?```$/);
   if (fence && !fence[1].includes('```')) text = fence[1].trim();
 
-  const closer = { '"': '"', '“': '”' }[text[0]];
+  const closer = own(QUOTE_PAIRS, text[0]);
   if (closer && text.length > 2 && text.endsWith(closer)) {
     const inner = text.slice(1, -1);
     if (!inner.includes(text[0]) && !inner.includes(closer)) text = inner.trim();
@@ -649,17 +663,34 @@ function createThinkFilter() {
   };
 }
 
+// Text at the end of what has arrived that may close a wrapper: a quote or a (partial) closing tag
+const HELD_TAIL = /\s*(?:(?:<\/?\w*>?|["”])\s*)+$/;
+
 // Forwards streamed text to `emit`, holding back the first line until it is
-// clear whether it is model chatter
+// clear whether it is model chatter, so the stream shows what the result will be.
+// A quote opening the answer is held too, and dropped if its partner ends it.
 function createStreamCleaner(emit) {
   const DECIDE_AFTER = 100;
   const think = createThinkFilter();
   let head = '';
   let decided = false;
   let dropped = 0;
+  let closer = null;
+  let tail = '';
+
+  // Sends text, keeping back a trailing piece that may turn out to close a wrapper
+  function send(text) {
+    text = tail + text;
+    tail = text.match(HELD_TAIL)?.[0] || '';
+    text = text.slice(0, text.length - tail.length);
+    if (text) emit(text);
+  }
 
   function decide(final) {
     head = head.replace(/^\s+/, '');
+    // Hold a partial opening tag ("<draft_pr") until it is complete, then drop a wrapper tag
+    if (!final && /^<\w*$/.test(head)) return;
+    head = head.replace(OPENING_TAG, '');
     const newline = head.indexOf('\n');
     if (newline !== -1 && dropped < 2 && isLeadInLine(head.slice(0, newline))) {
       dropped++;
@@ -668,25 +699,37 @@ function createStreamCleaner(emit) {
     }
     if (newline === -1 && head.length < DECIDE_AFTER && !final) {
       // Start streaming right away once the first word rules out chatter ("Write a...", "Explain...")
-      const firstWord = head.match(/^[A-Za-z']+(?=[^A-Za-z'])/);
-      if (!firstWord || LEAD_IN_OPENER.test(firstWord[0])) return;
+      const firstWord = head.match(/^["“]?([A-Za-z']+)(?=[^A-Za-z'])/);
+      if (!firstWord || LEAD_IN_OPENER.test(firstWord[1])) return;
     }
     decided = true;
-    const text = final ? stripLeadIn(head) : head.replace(LABEL_PREFIX, '');
-    if (text) emit(text);
+    // The whole answer is known: send exactly what the result will be
+    if (final) {
+      const text = cleanEnhancedText(head);
+      if (text) emit(text);
+      return;
+    }
+    let text = head.replace(LABEL_PREFIX, '');
+    closer = own(QUOTE_PAIRS, text[0]) || null;
+    if (closer) text = text.slice(1);
+    send(text);
   }
 
   return {
     push(chunk) {
       const text = think.push(chunk);
       if (!text) return;
-      if (decided) return emit(text);
+      if (decided) return send(text);
       head += text;
       decide(false);
     },
     flush() {
       head += think.flush();
-      if (!decided) decide(true);
+      if (!decided) return decide(true);
+      // What was held back is sent, unless it closes the wrapper the answer opened with
+      let rest = tail.replace(CLOSING_TAG, '').trimEnd();
+      if (closer && rest.endsWith(closer)) rest = rest.slice(0, -1);
+      if (rest.trim()) emit(rest);
     }
   };
 }

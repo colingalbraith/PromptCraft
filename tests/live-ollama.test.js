@@ -43,7 +43,7 @@ test('live Ollama: a real model streams a rewrite through the worker', { timeout
   t.diagnostic(`rewrite: ${result.text.replace(/\s+/g, ' ').slice(0, 300)}`);
   assert.ok(deltas.length > 1, 'expected the rewrite to arrive in several chunks');
   assert.equal(port.streamed().trim(), result.text);
-  assert.doesNotMatch(result.text, /<think>/);
+  assert.doesNotMatch(result.text, /<think>|<\/?draft_prompt>/);
 
   const stats = worker.storage.local.data.usageStats;
   assert.ok(stats.byModel[model].inputTokens > 100, 'expected real prompt token counts from Ollama');
