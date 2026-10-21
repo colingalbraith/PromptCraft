@@ -3,20 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Transform messy ideas into crystal-clear AI prompts in seconds. Free, open-source Chrome extension that works with ChatGPT, Claude, Gemini, and Ollama.">
+    <meta name="description" content="PromptCraft reviews and rewrites your AI prompts right where you type them. Free, open-source Chrome extension for ChatGPT, Claude, Gemini and more, with your own API key, a local model, or the model built into your browser.">
     <meta name="keywords" content="AI prompts, prompt engineering, ChatGPT, Claude, Gemini, AI tools, Chrome extension">
     <meta name="author" content="PromptCraft">
 
     <meta property="og:title" content="PromptCraft — Sharper Prompts, Better Answers">
-    <meta property="og:description" content="Transform messy ideas into crystal-clear AI prompts in seconds. Free Chrome extension.">
+    <meta property="og:description" content="Reviews and rewrites your AI prompts right where you type them. Free, open-source Chrome extension.">
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://getpromptcraft.vercel.app">
-    <meta property="og:image" content="https://getpromptcraft.vercel.app/assets/og-image.png">
+    <meta property="og:url" content="https://colingalbraith.github.io/PromptCraft/">
+    <meta property="og:image" content="https://colingalbraith.github.io/PromptCraft/assets/og-image.png">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="PromptCraft — Sharper Prompts, Better Answers">
-    <meta name="twitter:description" content="Transform messy ideas into crystal-clear AI prompts in seconds.">
-    <meta name="twitter:image" content="https://getpromptcraft.vercel.app/assets/og-image.png">
+    <meta name="twitter:description" content="Reviews and rewrites your AI prompts right where you type them. Free, open-source Chrome extension.">
+    <meta name="twitter:image" content="https://colingalbraith.github.io/PromptCraft/assets/og-image.png">
 
     <title>PromptCraft — Sharper Prompts, Better Answers</title>
 
@@ -48,19 +48,14 @@
             <h2 class="splash-title">PromptCraft</h2>
             <div class="splash-bar"><div class="splash-bar-fill"></div></div>
             <div class="splash-tips" id="splashTips">
-                <span class="splash-tip active">Works with OpenAI, Claude, Gemini &amp; Ollama</span>
-                <span class="splash-tip">14+ built-in templates for common tasks</span>
-                <span class="splash-tip">One-click prompt enhancement</span>
-                <span class="splash-tip">Word-level diff view to see what changed</span>
-                <span class="splash-tip">Free &amp; open source forever</span>
-                <span class="splash-tip">Smart analysis understands your input</span>
+                <span class="splash-tip active">Reviews your prompt as you type</span>
                 <span class="splash-tip">Works on ChatGPT, Claude, Gemini &amp; more</span>
-                <span class="splash-tip">Real-time streaming as you enhance</span>
-                <span class="splash-tip">No account or signup required</span>
-                <span class="splash-tip">Prompt scoring before and after</span>
-                <span class="splash-tip">Undo any enhancement instantly</span>
-                <span class="splash-tip">Dark mode included</span>
-                <span class="splash-tip">Custom tones and presets</span>
+                <span class="splash-tip">Your text changes only when you accept</span>
+                <span class="splash-tip">Uses the conversation you're in</span>
+                <span class="splash-tip">OpenAI, Gemini, Claude, Ollama or the built-in model</span>
+                <span class="splash-tip">14 templates and custom tones</span>
+                <span class="splash-tip">Free &amp; open source</span>
+                <span class="splash-tip">No account, no tracking</span>
             </div>
         </div>
     </div>
@@ -82,8 +77,9 @@
             </a>
             <div class="nav-links" id="navLinks">
                 <a href="#features" class="nav-link">Features</a>
+                <a href="#screens" class="nav-link">Screenshots</a>
                 <a href="#how-it-works" class="nav-link">How It Works</a>
-                <a href="https://github.com/colingalbraith/PromptCraft" class="btn-nav" target="_blank" rel="noopener noreferrer">Install Free</a>
+                <a href="https://github.com/colingalbraith/PromptCraft/releases/latest" class="btn-nav" target="_blank" rel="noopener noreferrer">Download Free</a>
             </div>
             <button class="mobile-toggle" id="mobileToggle" aria-label="Toggle navigation">
                 <span></span><span></span><span></span>
@@ -106,9 +102,9 @@
                     </h1>
                     <p class="hero-sub">Bad prompts, bad answers. PromptCraft fixes that in one click.</p>
                     <div class="hero-cta">
-                        <a href="https://github.com/colingalbraith/PromptCraft" class="btn btn-primary" target="_blank" rel="noopener noreferrer">
+                        <a href="https://github.com/colingalbraith/PromptCraft/releases/latest" class="btn btn-primary" target="_blank" rel="noopener noreferrer">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                            Install Extension
+                            Download for Chrome
                         </a>
                         <a href="https://github.com/colingalbraith/PromptCraft" class="btn btn-ghost" target="_blank" rel="noopener noreferrer">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
@@ -118,7 +114,7 @@
                 </div>
                 <div class="hero-visual">
                     <div class="hero-video-body">
-                        <video id="heroVideo" muted loop playsinline>
+                        <video id="heroVideo" muted loop playsinline poster="assets/demo-poster.jpg" aria-label="Typing a rough prompt in a chat box, opening PromptCraft's review from the badge, improving the prompt and accepting the rewrite">
                             <source src="assets/demo.mp4" type="video/mp4">
                         </video>
                     </div>
@@ -129,8 +125,8 @@
             <div class="container">
                 <div class="stats-bar">
                     <div class="stat">
-                        <span class="stat-value">Custom</span>
-                        <span class="stat-label">Writing Styles</span>
+                        <span class="stat-value">Live</span>
+                        <span class="stat-label">Prompt Review</span>
                     </div>
                     <div class="stat-divider"></div>
                     <div class="stat">
@@ -168,46 +164,69 @@
                 <div class="features-grid">
                     <article class="feature-card">
                         <div class="feature-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                        </div>
+                        <h3>Review as You Type</h3>
+                        <p>A small badge in the chat box scores your draft and points out its weakest spots, each with a one-click fix. It runs on your device; nothing is sent until you ask.</p>
+                    </article>
+                    <article class="feature-card">
+                        <div class="feature-icon">
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                         </div>
-                        <h3>One-Click Rewrite</h3>
-                        <p>Select any text on any AI chat, hit the shortcut, and get an enhanced prompt instantly. No copy-paste loops.</p>
+                        <h3>Suggest, Then Accept</h3>
+                        <p>The rewrite streams into a card beside the box, and your text changes only when you accept. Shorter, more detail, compare word by word, or undo.</p>
+                    </article>
+                    <article class="feature-card">
+                        <div class="feature-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                        </div>
+                        <h3>Knows the Conversation</h3>
+                        <p>Builds on the chat you're in, and leaves a [blank] with a field to fill in wherever only you know the detail. No invented facts.</p>
+                    </article>
+                    <article class="feature-card">
+                        <div class="feature-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                        </div>
+                        <h3>Any Model You Like</h3>
+                        <p>Gemini, OpenAI, Claude, any OpenAI-compatible API, a local model with Ollama, or the model built into your browser with no key at all.</p>
                     </article>
                     <article class="feature-card">
                         <div class="feature-icon">
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
                         </div>
-                        <h3>14+ Templates</h3>
-                        <p>Debug code, write emails, brainstorm ideas, compare options. Pre-built templates for every common task.</p>
+                        <h3>Templates &amp; Tones</h3>
+                        <p>Fourteen starting points for code, writing, research and planning, five tones, and your own presets. All in a side panel beside any page.</p>
                     </article>
                     <article class="feature-card">
                         <div class="feature-icon">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                         </div>
-                        <h3>See What Changed</h3>
-                        <p>Word-level diff view shows exactly what PromptCraft improved. Green for added, red for removed. Learn as you go.</p>
+                        <h3>Private by Design</h3>
+                        <p>No servers, accounts or tracking. Keys stay on your device, and with Ollama or the built-in model your prompts never leave your computer.</p>
                     </article>
-                    <article class="feature-card">
-                        <div class="feature-icon">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg>
-                        </div>
-                        <h3>Smart Analysis</h3>
-                        <p>Understands your input — detects code, errors, quotes, and intent. Enhances differently based on what you typed.</p>
-                    </article>
-                    <article class="feature-card">
-                        <div class="feature-icon">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                        </div>
-                        <h3>Custom Tones &amp; Presets</h3>
-                        <p>Concise, Detailed, Creative, Technical, Reasoning. Build your own custom presets and reuse them.</p>
-                    </article>
-                    <article class="feature-card">
-                        <div class="feature-icon">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                        </div>
-                        <h3>Prompt History</h3>
-                        <p>Every enhancement is saved locally with before/after scores. Search, revisit, and export anytime.</p>
-                    </article>
+                </div>
+            </div>
+        </section>
+
+        <!-- ─── Screenshots ─── -->
+        <section class="screens" id="screens">
+            <div class="container">
+                <div class="section-header">
+                    <h2>See it in action<span class="accent-mark">.</span></h2>
+                </div>
+                <div class="screens-grid">
+                    <figure class="screen">
+                        <img src="assets/screens/review.webp" alt="PromptCraft's review card beside a chat box: a score of 44, three things to improve each with a Fix button, and tone choices" width="1600" height="1000" loading="lazy">
+                        <figcaption><strong>Review.</strong> A score and the weak spots, as you type.</figcaption>
+                    </figure>
+                    <figure class="screen">
+                        <img src="assets/screens/suggestion.webp" alt="A suggested rewrite that uses the conversation, with a highlighted blank and a field to fill it in" width="1600" height="1000" loading="lazy">
+                        <figcaption><strong>Suggest.</strong> A rewrite that builds on the conversation.</figcaption>
+                    </figure>
+                    <figure class="screen">
+                        <img src="assets/screens/dark.webp" alt="The suggested rewrite card on a dark chat page" width="1600" height="1000" loading="lazy">
+                        <figcaption><strong>Fits in.</strong> Follows the site's light or dark theme.</figcaption>
+                    </figure>
                 </div>
             </div>
         </section>
@@ -223,27 +242,28 @@
                         <div class="cta-step">
                             <div class="step-number">1</div>
                             <h3>Install the extension</h3>
-                            <p>Add PromptCraft to Chrome.</p>
+                            <p>Download it and load it in Chrome.</p>
                         </div>
                         <div class="cta-step-connector" aria-hidden="true"></div>
                         <div class="cta-step">
                             <div class="step-number">2</div>
-                            <h3>Use AI tools normally</h3>
-                            <p>Type like a human.</p>
+                            <h3>Type like a human</h3>
+                            <p>The badge reviews your draft.</p>
                         </div>
                         <div class="cta-step-connector" aria-hidden="true"></div>
                         <div class="cta-step">
                             <div class="step-number">3</div>
-                            <h3>Click &amp; enhance</h3>
-                            <p>Better prompt. Better result.</p>
+                            <h3>Improve &amp; accept</h3>
+                            <p>Better prompt. Better answer.</p>
                         </div>
                     </div>
 
                     <div class="cta-buttons">
-                        <a href="https://github.com/colingalbraith/PromptCraft" class="btn btn-primary btn-lg" target="_blank" rel="noopener noreferrer">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
-                            View on GitHub
+                        <a href="https://github.com/colingalbraith/PromptCraft/releases/latest" class="btn btn-primary btn-lg" target="_blank" rel="noopener noreferrer">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            Download for Chrome
                         </a>
+                        <a href="https://github.com/colingalbraith/PromptCraft" class="btn btn-ghost btn-lg" target="_blank" rel="noopener noreferrer">View on GitHub</a>
                     </div>
                 </div>
             </div>
@@ -263,6 +283,7 @@
                 <div class="footer-col">
                     <h4>Product</h4>
                     <a href="#features">Features</a>
+                    <a href="#screens">Screenshots</a>
                     <a href="#how-it-works">How It Works</a>
                 </div>
                 <div class="footer-col">
@@ -270,12 +291,12 @@
                     <a href="https://github.com/colingalbraith/PromptCraft" target="_blank" rel="noopener noreferrer">GitHub</a>
                     <a href="https://github.com/colingalbraith/PromptCraft/issues" target="_blank" rel="noopener noreferrer">Report a Bug</a>
                     <a href="https://github.com/colingalbraith/PromptCraft/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">License</a>
-                    <a href="/privacy.html">Privacy Policy</a>
+                    <a href="privacy.html">Privacy Policy</a>
                 </div>
             </div>
         </div>
         <div class="footer-bottom">
-            <p>&copy; 2025 PromptCraft. All rights reserved.</p>
+            <p>&copy; 2025&ndash;2026 PromptCraft &middot; Free and open source under the MIT License</p>
         </div>
     </footer>
 
